@@ -29,7 +29,7 @@ while True:
     else:
         raise Exception("Received a message with empty read and write fields")
 
-    resp = RespMsg(req_id=req.req_id, status=status, key=key, version=version, value=value)
+    resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=status, key=key, version=version, value=value)
 
     print req, " => ", resp
     sock.sendto(resp.pack(), addr)
