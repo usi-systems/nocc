@@ -25,7 +25,7 @@ class IncClient(Thread, StoreClient):
                 if resp2.status == STATUS_OK: break
                 #else: print resp2
             if i+1 == self.count:
-                print "client", self.cl_id, "incremented it to", resp2.value
+                print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp2.value
 
 
 if __name__ == '__main__':
