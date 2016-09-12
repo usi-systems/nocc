@@ -1,6 +1,9 @@
 import struct
 import socket
 
+TYPE_REQ = 0
+TYPE_RES = 1
+
 STATUS_OK = 0
 STATUS_NOTFOUND = 1
 STATUS_REJECT = 2
@@ -9,31 +12,15 @@ OP_R =  1
 OP_W =  2
 OP_RW = 3
 
-reqmsg_fmt = '!I i B i i i 100s'
+reqmsg_fmt = '!B I i i i i 100s'
 REQMSG_SIZE = struct.Struct(reqmsg_fmt).size
 
-class ReqMsg:
-    cl_id = 0
-    req_id = 0
+class BaseMsg:
     flags = 0
-    r_key = 0
-    r_version = 0
-    w_key = 0
-    w_value = ''
+    FLAGS = ['type', 'rm']
 
-    FLAGS = ['rm']
-
-    def __init__(self, binstr=None, cl_id=0, req_id=0, rm=0, r_key=0, r_version=0, w_key=0, w_value=''):
+    def __init__(self):
         for f in self.FLAGS: setattr(self, f, 0) # init flags to 0
-        if binstr is not None:
-            self.unpack(binstr)
-        else:
-            self.cl_id, self.req_id, self.rm, self.r_key, self.r_version, self.w_key, self.w_value = cl_id, req_id, rm, r_key, r_version, w_key, w_value
-
-    def op(self):
-        if self.r_key != 0 and self.w_key != 0: return OP_RW
-        elif self.r_key != 0: return OP_R
-        elif self.w_key != 0 : return OP_W
 
     def _packflags(self):
         binary = (''.join(['1' if getattr(self, f) else '0' for f in self.FLAGS])).ljust(8, '0')
@@ -44,21 +31,42 @@ class ReqMsg:
         for i, f in enumerate(self.FLAGS):
             setattr(self, f, int(binary[i]))
 
+class ReqMsg(BaseMsg):
+    cl_id = 0
+    req_id = 0
+    r_key = 0
+    r_version = 0
+    w_key = 0
+    w_value = ''
+
+    def __init__(self, binstr=None, cl_id=0, req_id=0, rm=0, r_key=0, r_version=0, w_key=0, w_value=''):
+        BaseMsg.__init__(self)
+        self.type = TYPE_REQ
+        if binstr is not None:
+            self.unpack(binstr)
+        else:
+            self.cl_id, self.req_id, self.rm, self.r_key, self.r_version, self.w_key, self.w_value = cl_id, req_id, rm, r_key, r_version, w_key, w_value
+
+    def op(self):
+        if self.r_key != 0 and self.w_key != 0: return OP_RW
+        elif self.r_key != 0: return OP_R
+        elif self.w_key != 0 : return OP_W
+
     def unpack(self, binstr):
-        self.cl_id, self.req_id, self.flags, self.r_key, self.r_version, self.w_key, self.w_value = struct.unpack(reqmsg_fmt, binstr)
+        self.flags, self.cl_id, self.req_id, self.r_key, self.r_version, self.w_key, self.w_value = struct.unpack(reqmsg_fmt, binstr)
         self._unpackflags()
 
     def pack(self):
         self._packflags()
-        return struct.pack(reqmsg_fmt, self.cl_id, self.req_id, self.flags, self.r_key, self.r_version, self.w_key, self.w_value)
+        return struct.pack(reqmsg_fmt, self.flags, self.cl_id, self.req_id, self.r_key, self.r_version, self.w_key, self.w_value)
 
     def __str__(self):
         return "ReqMsg(cl_id=%d, req_id=%d, rm=%d, r_key=%d, r_version=%d, w_key=%d, w_value='%s')" % (self.cl_id, self.req_id, self.rm, self.r_key, self.r_version, self.w_key, self.w_value.rstrip('\0'))
 
-respmsg_fmt = '!I i B i i 100s'
+respmsg_fmt = '!B I i B i i 100s'
 RESPMSG_SIZE = struct.Struct(respmsg_fmt).size
 
-class RespMsg:
+class RespMsg(BaseMsg):
     cl_id = 0
     req_id = 0
     status = STATUS_OK
@@ -67,16 +75,20 @@ class RespMsg:
     value = ''
 
     def __init__(self, binstr=None, cl_id=0, req_id=0, status=0, key=0, version=0, value=''):
+        BaseMsg.__init__(self)
+        self.type = TYPE_RES
         if binstr is not None:
             self.unpack(binstr)
         else:
             self.cl_id, self.req_id, self.status, self.key, self.version, self.value = cl_id, req_id, status, key, version, value
 
     def unpack(self, binstr):
-        self.cl_id, self.req_id, self.status, self.key, self.version, self.value = struct.unpack(respmsg_fmt, binstr)
+        self.flags, self.cl_id, self.req_id, self.status, self.key, self.version, self.value = struct.unpack(respmsg_fmt, binstr)
+        self._unpackflags()
 
     def pack(self):
-        return struct.pack(respmsg_fmt, self.cl_id, self.req_id, self.status, self.key, self.version, self.value)
+        self._packflags()
+        return struct.pack(respmsg_fmt, self.flags, self.cl_id, self.req_id, self.status, self.key, self.version, self.value)
 
     def __str__(self):
         return "RespMsg(cl_id=%d, req_id=%d, status=%d, key=%d, version=%d, value='%s')" % (self.cl_id, self.req_id, self.status, self.key, self.version, self.value.rstrip('\0'))

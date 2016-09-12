@@ -18,9 +18,14 @@ class SwitchCache:
         self.versions = {}
 
     def insert(self, key=None, version=None, value=None):
-        if not key in self.keys: self.keys.append(key)
-        self.versions[key] = version
-        self.values[key] = value
+        if value is None: # a rm operation
+            del self.versions[key]
+            del self.values[key]
+            self.keys.remove(key)
+        else:
+            self.versions[key] = version
+            self.values[key] = value
+            if not key in self.keys: self.keys.append(key)
 
     def hit(self, key):
         return key in self.keys
@@ -97,7 +102,8 @@ class SoftwareSwitch(asyncore.dispatcher):
 
         # Update our cache, if necessary:
         if resp.status == STATUS_OK and resp.key != 0:
-            self.cache.insert(key=resp.key, version=resp.version, value=resp.value)
+            value = None if resp.version == 0 else resp.value
+            self.cache.insert(key=resp.key, version=resp.version, value=value)
 
         # Finally, forward the response:
         self.client_sock.sendto_client(data=data, cl_id=resp.cl_id)
