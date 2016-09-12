@@ -17,7 +17,7 @@ REQMSG_SIZE = struct.Struct(reqmsg_fmt).size
 
 class BaseMsg:
     flags = 0
-    FLAGS = ['type', 'rm']
+    FLAGS = ['type', 'rm', 'updated']
 
     def __init__(self):
         for f in self.FLAGS: setattr(self, f, 0) # init flags to 0
@@ -74,13 +74,13 @@ class RespMsg(BaseMsg):
     version = 0
     value = ''
 
-    def __init__(self, binstr=None, cl_id=0, req_id=0, status=0, key=0, version=0, value=''):
+    def __init__(self, binstr=None, cl_id=0, req_id=0, status=0, key=0, version=0, value='', updated=0):
         BaseMsg.__init__(self)
         self.type = TYPE_RES
         if binstr is not None:
             self.unpack(binstr)
         else:
-            self.cl_id, self.req_id, self.status, self.key, self.version, self.value = cl_id, req_id, status, key, version, value
+            self.cl_id, self.req_id, self.status, self.key, self.version, self.value, self.updated = cl_id, req_id, status, key, version, value, updated
 
     def unpack(self, binstr):
         self.flags, self.cl_id, self.req_id, self.status, self.key, self.version, self.value = struct.unpack(respmsg_fmt, binstr)
@@ -91,7 +91,7 @@ class RespMsg(BaseMsg):
         return struct.pack(respmsg_fmt, self.flags, self.cl_id, self.req_id, self.status, self.key, self.version, self.value)
 
     def __str__(self):
-        return "RespMsg(cl_id=%d, req_id=%d, status=%d, key=%d, version=%d, value='%s')" % (self.cl_id, self.req_id, self.status, self.key, self.version, self.value.rstrip('\0'))
+        return "RespMsg(cl_id=%d, req_id=%d, status=%d, key=%d, version=%d, value='%s', updated=%d)" % (self.cl_id, self.req_id, self.status, self.key, self.version, self.value.rstrip('\0'), self.updated)
 
 class Store:
     values = {}

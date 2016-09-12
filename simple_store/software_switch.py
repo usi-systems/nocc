@@ -18,7 +18,7 @@ class SwitchCache:
         self.versions = {}
 
     def insert(self, key=None, version=None, value=None):
-        if value is None: # a rm operation
+        if version == 0: # a rm operation
             del self.versions[key]
             del self.values[key]
             self.keys.remove(key)
@@ -102,7 +102,6 @@ class SoftwareSwitch(asyncore.dispatcher):
 
         # Update our cache, if necessary:
         if resp.status == STATUS_OK and resp.key != 0:
-            value = None if resp.version == 0 else resp.value
             self.cache.insert(key=resp.key, version=resp.version, value=value)
 
         # Finally, forward the response:
