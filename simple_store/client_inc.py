@@ -13,10 +13,7 @@ class IncClient(Thread, StoreClient):
 
     def run(self):
         # Initialize key/value if it's not already there
-        resp = self.req(r_key=1)
-        if resp.status == STATUS_NOTFOUND:
-            resp = self.req(w_key=1, w_value='0')
-            assert(resp.status == STATUS_OK)
+        resp = self.req(r_key=1, r_version=0, w_key=1, w_value='0')
         for i in range(self.count):
             while True:
                 resp1 = self.req(r_key=1)

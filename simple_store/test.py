@@ -44,6 +44,27 @@ assert(resp2.value[0] == 'x')
 resp = cl.req(r_key=1, r_version=9999, w_key=1, w_value='x')
 assert(resp.status == STATUS_REJECT)
 
+# Try another bad r/w (assume key doesn't exist)
+resp = cl.req(r_key=1, r_version=0, w_key=1, w_value='x')
+assert(resp.status == STATUS_REJECT)
+
+# Try a good r/w (assume key doesn't exist)
+resp = cl.req(w_key=1, rm=True)
+assert(resp.status == STATUS_OK)
+resp = cl.req(r_key=1, r_version=0, w_key=1, w_value='x')
+assert(resp.status == STATUS_OK)
+assert(resp.value[0] == 'x')
+
+# Delete keys
+for i in range(3):
+    resp1 = cl.req(w_key=i+1, rm=True)
+    assert(resp1.status == STATUS_OK)
+    assert(resp1.key == i+1)
+    assert(resp1.version == 0)
+    assert(resp1.value.rstrip('\0') == '')
+    resp2 = cl.req(r_key=i+1)
+    assert(resp2.status == STATUS_NOTFOUND)
+
 # Try inexistent key
 resp = cl.req(r_key=999999)
 assert(resp.status == STATUS_NOTFOUND)
