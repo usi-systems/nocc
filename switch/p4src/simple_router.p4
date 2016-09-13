@@ -23,6 +23,7 @@ header_type ethernet_t {
     }
 }
 
+#define IPV4_HDR_LEN 20
 header_type ipv4_t {
     fields {
         bit<4> version;
@@ -40,6 +41,7 @@ header_type ipv4_t {
     }
 }
 
+#define UDP_HDR_LEN 8
 header_type udp_t {
     fields {
         bit<16> srcPort;
@@ -58,15 +60,17 @@ header_type udp_t {
 #define GOTTHARD_STATUS_NOTFOUND    1
 #define GOTTHARD_STATUS_REJECT      2
 
+#define GOTTHARD_FLAGS_HDR_LEN 1
 header_type gotthard_flags_t {
     fields {
         bit<1> msg_type;
         bit<1> rm;
         bit<1> updated;
-        bit<5> other;
+        bit<5> unused_flags;
     }
 }
 
+#define GOTTHARD_REQ_HDR_LEN 120
 header_type gotthard_req_t {
     fields {
         bit<32> cl_id;
@@ -78,6 +82,7 @@ header_type gotthard_req_t {
     }
 }
 
+#define GOTTHARD_RES_HDR_LEN 117
 header_type gotthard_res_t {
     fields {
         bit<32> cl_id;
@@ -182,7 +187,7 @@ register version_register {
 }
 
 register value_register {
-    width: 100;
+    width: 800;
     instance_count: MAX_REG_INST;
 }
 
@@ -202,41 +207,81 @@ header_type gotthard_req_metadata_t {
     fields {
         bit<1> is_same_version;
         bit<1> is_cache_hit;
-        bit<1> is_rw;
+
+        // tmp variables for doing swaps:
+        bit<32> tmp_ipv4_dstAddr;
+        bit<16> tmp_udp_dstPort;
     }
 }
 metadata gotthard_req_metadata_t gotthard_req_metadata;
 
-action do_gotthard_cache () {
-    gotthard_req_metadata.is_cache_hit = version_register[gotthard_req.r_key] != 0;
-    gotthard_req_metadata.is_same_version = version_register[gotthard_req.r_key] == gotthard_req.r_version;
-    gotthard_req_metadata.is_rw = gotthard_req.w_key != 0;
+action do_gotthard_cache_lookup () {
+    gotthard_req_metadata.is_cache_hit = version_register[gotthard_req.r_key] != 0 ? (bit<1>) 1 : 0;
+    gotthard_req_metadata.is_same_version = version_register[gotthard_req.r_key] == gotthard_req.r_version ? (bit<1>) 1 : 0;
 }
 
 table gotthard_cache_table {
     actions {
-        do_gotthard_cache;
+        do_gotthard_cache_lookup;
     }
     size: 1;
 }
 
-action do_gotthard_reject () {
-}
-action do_gotthard_hit () {
-}
-action do_nothing () {
+action do_direction_swap () { // return the packet to the sender
+    // Save old dst IP and port in tmp variable
+    gotthard_req_metadata.tmp_ipv4_dstAddr = ipv4.dstAddr;
+    gotthard_req_metadata.tmp_udp_dstPort = udp.dstPort;
+
+    ipv4.dstAddr = ipv4.srcAddr;
+    ipv4.srcAddr = gotthard_req_metadata.tmp_ipv4_dstAddr;
+    ipv4.totalLen = IPV4_HDR_LEN + UDP_HDR_LEN + GOTTHARD_FLAGS_HDR_LEN + GOTTHARD_RES_HDR_LEN;
+
+    udp.dstPort = udp.srcPort;
+    udp.srcPort = gotthard_req_metadata.tmp_udp_dstPort;
+    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
+    udp.length_ = UDP_HDR_LEN + GOTTHARD_FLAGS_HDR_LEN + GOTTHARD_RES_HDR_LEN;
 }
 
-table gotthard_req_forward_table {
-    reads {
-        gotthard_req_metadata.is_cache_hit: exact;
-        gotthard_req_metadata.is_same_version: exact;
-        gotthard_req_metadata.is_rw: exact;
-    }
+action do_gotthard_reject () {
+    do_direction_swap();
+    gotthard_flags.msg_type = GOTTHARD_TYPE_RES;
+    gotthard_flags.rm = 0;
+    gotthard_flags.updated = 0;
+
+    remove_header(gotthard_req);
+    add_header(gotthard_res);
+    gotthard_res.status = GOTTHARD_STATUS_REJECT;
+    gotthard_res.key = gotthard_req.r_key;
+    gotthard_res.version = 0;
+    gotthard_res.value = 0;
+}
+
+action do_gotthard_hit () {
+    do_direction_swap();
+    gotthard_flags.msg_type = GOTTHARD_TYPE_RES;
+    gotthard_flags.rm = 0;
+    gotthard_flags.updated = 0;
+
+    remove_header(gotthard_req);
+    add_header(gotthard_res);
+    gotthard_res.cl_id = gotthard_req.cl_id;
+    gotthard_res.req_id = gotthard_req.req_id;
+    gotthard_res.status = GOTTHARD_STATUS_OK;
+    gotthard_res.key = gotthard_req.r_key;
+    gotthard_res.version = version_register[gotthard_req.r_key];
+    gotthard_res.value = value_register[gotthard_req.r_key];
+}
+
+table gotthard_req_reject_table {
     actions {
         do_gotthard_reject;
+    }
+    size: 1;
+}
+
+table gotthard_req_hit_table {
+    actions {
         do_gotthard_hit;
-        do_nothing;
     }
     size: 1;
 }
@@ -299,11 +344,16 @@ control ingress {
         if (valid(gotthard_res) and gotthard_flags.updated == 1) {
             apply(gotthard_res_table);
         }
-        else if (valid(gotthard_req)) {
-            if (gotthard_req.r_key != 0) {
-                apply(gotthard_cache_table);
+        else if (valid(gotthard_req) and gotthard_req.r_key != 0) {
+            apply(gotthard_cache_table); // First, look up the key in the cache
+            // RW operation and a bad r_version
+            if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_same_version == 0) {
+                apply(gotthard_req_reject_table);
             }
-            apply(gotthard_req_forward_table);
+            // R operation and there's a cache hit
+            else if (gotthard_req.w_key == 0 and gotthard_req_metadata.is_cache_hit == 1) {
+                apply(gotthard_req_hit_table);
+            }
         }
         apply(ipv4_lpm);
         apply(forward);

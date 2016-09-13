@@ -8,6 +8,8 @@ STATUS_OK = 0
 STATUS_NOTFOUND = 1
 STATUS_REJECT = 2
 
+status_to_string = ['STATUS_OK', 'STATUS_NOTFOUND', 'STATUS_REJECT']
+
 OP_R =  1
 OP_W =  2
 OP_RW = 3
