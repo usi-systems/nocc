@@ -1,6 +1,5 @@
+#!/usr/bin/env python
 import argparse
-import socket
-import struct
 from threading import Thread
 from common import *
 
@@ -22,14 +21,14 @@ class IncClient(Thread, StoreClient):
                 if resp2.status == STATUS_OK: break
                 #else: print resp2
             if i+1 == self.count:
-                print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp2.value
+                print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp2.value.rstrip('\0')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("host", type=str, help="server hostname")
     parser.add_argument("port", type=int, help="server port")
-    parser.add_argument("--num_clients", "-n", type=int, help="number of parallel clients", default=2)
+    parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=2)
     parser.add_argument("--count", "-c", type=int, help="number of +1 increments to perform", default=1000)
     args = parser.parse_args()
 

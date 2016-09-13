@@ -1,15 +1,29 @@
+#!/usr/bin/env python
 import argparse
 import socket
+import time
+import signal
 from common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", type=int, help="port to bind on", required=True)
+parser.add_argument("-l", "--log", type=str, help="log file to write to", required=False)
 args = parser.parse_args()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', args.port))
 
 store = Store()
+
+log = None
+if args.log:
+    log = open(args.log, 'wa')
+
+    def handler(signum, frame):
+        log.flush()
+        log.close()
+    signal.signal(signal.SIGINT, handler)
+
 
 while True:
     data, addr = sock.recvfrom(REQMSG_SIZE)
@@ -33,4 +47,7 @@ while True:
     resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=status, key=key, version=version, value=value, updated=updated)
 
     print req, " => ", resp
+    if log: log.write("%f %s %s\n" % (time.time(), req, resp))
     sock.sendto(resp.pack(), addr)
+
+if log: log.close()
