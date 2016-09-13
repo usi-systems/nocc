@@ -181,6 +181,7 @@ parser parse_gotthard {
     }
 }
 
+
 register version_register {
     width: 32;
     instance_count: MAX_REG_INST;
@@ -205,6 +206,7 @@ table gotthard_res_table {
 
 header_type gotthard_req_metadata_t {
     fields {
+        bit<1> is_cache_enabled;
         bit<1> is_same_version;
         bit<1> is_cache_hit;
 
@@ -216,13 +218,18 @@ header_type gotthard_req_metadata_t {
 metadata gotthard_req_metadata_t gotthard_req_metadata;
 
 action do_gotthard_cache_lookup () {
+    gotthard_req_metadata.is_cache_enabled = (bit<1>)1;
     gotthard_req_metadata.is_cache_hit = version_register[gotthard_req.r_key] != 0 ? (bit<1>) 1 : 0;
     gotthard_req_metadata.is_same_version = version_register[gotthard_req.r_key] == gotthard_req.r_version ? (bit<1>) 1 : 0;
+}
+
+action _no_op () {
 }
 
 table gotthard_cache_table {
     actions {
         do_gotthard_cache_lookup;
+        _no_op; // use this action to disable caching
     }
     size: 1;
 }
@@ -346,13 +353,15 @@ control ingress {
         }
         else if (valid(gotthard_req) and gotthard_req.r_key != 0) {
             apply(gotthard_cache_table); // First, look up the key in the cache
-            // RW operation and a bad r_version
-            if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_same_version == 0) {
-                apply(gotthard_req_reject_table);
-            }
-            // R operation and there's a cache hit
-            else if (gotthard_req.w_key == 0 and gotthard_req_metadata.is_cache_hit == 1) {
-                apply(gotthard_req_hit_table);
+            if (gotthard_req_metadata.is_cache_enabled == 1) {
+                // RW operation and a bad r_version
+                if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_same_version == 0) {
+                    apply(gotthard_req_reject_table);
+                }
+                // R operation and there's a cache hit
+                else if (gotthard_req.w_key == 0 and gotthard_req_metadata.is_cache_hit == 1) {
+                    apply(gotthard_req_hit_table);
+                }
             }
         }
         apply(ipv4_lpm);
