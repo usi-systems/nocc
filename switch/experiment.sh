@@ -26,7 +26,13 @@ CLI_PATH=$BMV2_PATH/tools/runtime_CLI.py
 
 echo $P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
 $P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
-#sudo python $BMV2_PATH/mininet/1sw_demo.py \
-sudo python demo.py \
+sudo python experiment.py \
     --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
+    --store-delay 2 \
+    --client-delay 1 \
+    --num-clients 2 \
+    --client-cmd "../simple_store/client_inc.py -n 1 -c 50 %h %p" \
+    --store-cmd "../simple_store/store.py -p %p --log store.log" \
     --json simple_router.json
+exit
+    --disable-cache \

@@ -18,15 +18,6 @@ THIS_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 source $THIS_DIR/env.sh
 
-P4C_BM_SCRIPT=$P4C_BM_PATH/p4c_bm/__main__.py
+CLI_PATH=$BMV2_PATH/targets/simple_switch/sswitch_CLI
 
-SWITCH_PATH=$BMV2_PATH/targets/simple_switch/simple_switch
-
-CLI_PATH=$BMV2_PATH/tools/runtime_CLI.py
-
-echo $P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
-$P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
-#sudo python $BMV2_PATH/mininet/1sw_demo.py \
-sudo python demo.py \
-    --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
-    --json simple_router.json
+$CLI_PATH simple_router.json
