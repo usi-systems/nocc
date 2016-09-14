@@ -19,6 +19,7 @@ import subprocess
 import signal
 import os
 import sys
+import json
 from sourcer import sourceFile
 
 env_vars = sourceFile('./env.sh')
@@ -51,21 +52,25 @@ parser.add_argument('--json', help='Path to JSON config file',
                     type=str, action="store", required=True)
 parser.add_argument('--pcap-dump', help='Dump packets on interfaces to pcap files',
                     type=str, action="store", required=False, default=False)
-parser.add_argument('--store-delay', help='Delay (ms) between switch and store',
+parser.add_argument('--server-delay', help='Delay (ms) between switch and server',
                     type=int, action="store", required=False, default=0)
 parser.add_argument('--client-delay', help='Delay (ms) between switch and client',
                     type=int, action="store", required=False, default=0)
 parser.add_argument('--client-cmd', help='Command to execute on clients',
-                    type=str, action="store", required=True, default=False)
-parser.add_argument('--store-cmd', help='Command to start store',
-                    type=str, action="store", required=True, default=False)
+                    type=str, action="store", required=False, default=False)
+parser.add_argument('--server-cmd', help='Command to start server',
+                    type=str, action="store", required=False, default=False)
+parser.add_argument('--config', help='JSON client config file',
+                    type=str, action="store", required=False, default=False)
+parser.add_argument('--entries', help='table entries (commands.txt) to add to the switch',
+                    type=str, action="store", required=False, default='commands.txt')
 
 args = parser.parse_args()
 
 
 class SingleSwitchTopo(Topo):
     "Single switch connected to n (< 256) hosts."
-    def __init__(self, sw_path, json_path, thrift_port, pcap_dump, n, **opts):
+    def __init__(self, sw_path, json_path, thrift_port, pcap_dump, hosts, **opts):
         # Initialize topology and default options
         Topo.__init__(self, **opts)
 
@@ -75,22 +80,54 @@ class SingleSwitchTopo(Topo):
                                 thrift_port = thrift_port,
                                 pcap_dump = pcap_dump)
 
-        for h in xrange(n):
-            host = self.addHost('h%d' % (h + 1),
-                                ip = "10.0.%d.10/24" % h,
-                                mac = '00:04:00:00:00:%02x' %h)
-            delay = args.store_delay if n==0 else args.client_delay
-            self.addLink(host, switch, delay="%dms"%delay)
+        for h in hosts:
+            host = self.addHost(h['name'], ip=h['ip']+'/24', mac=h['mac'])
+            self.addLink(host, switch, delay="%dms"%h['delay'])
+
 
 def main():
-    num_hosts = args.num_clients + 1
-    mode = args.mode
+    if args.config:
+        with open(args.config, 'r') as f:
+            conf = json.load(f)
+        assert('server' in conf and type(conf['server']) is dict)
+        assert('cmd' in conf['server'])
+        assert('clients' in conf and type(conf['clients']) is list)
+    else:
+        conf = dict(server=dict(cmd=args.server_cmd),
+                    clients=[dict(cmd=args.client_cmd) for _ in xrange(args.num_clients)])
+
+    hosts = []
+    srv = conf['server']
+    server_addr = srv['addr'] if 'addr' in srv else "10.0.0.10"
+    server_port = srv['port'] if 'port' in srv else "9999"
+
+    hosts.append(dict(
+            name = srv['name'] if 'name' in srv else 'h1',
+            ip = srv['ip'] if 'ip' in srv else "10.0.0.10",
+            sw_addr = srv['sw_addr'] if 'sw_addr' in srv else "10.0.0.1",
+            mac = srv['mac'] if 'mac' in srv else '00:04:00:00:00:00',
+            sw_mac = srv['sw_mac'] if 'sw_mac' in srv else "00:aa:bb:00:00:00",
+            delay = srv['delay'] if 'delay' in srv else args.server_delay,
+            cmd = srv['cmd'].replace('%h', server_addr).replace('%p', server_port)
+            ))
+    for n, cl in enumerate(conf['clients']):
+        assert(type(cl) is dict and 'cmd' in cl)
+        h = n + 1
+        hosts.append(dict(
+                name = cl['name'] if 'name' in cl else 'h%d' % (h + 1),
+                ip = cl['ip'] if 'ip' in cl else "10.0.%d.10" % h,
+                sw_addr = cl['sw_addr'] if 'sw_addr' in cl else "10.0.%d.1" % h,
+                mac = cl['mac'] if 'mac' in cl else '00:04:00:00:00:%02x' % h,
+                sw_mac = cl['sw_mac'] if 'sw_mac' in cl else "00:aa:bb:00:00:%02x" % h,
+                delay = cl['delay'] if 'delay' in cl else args.client_delay,
+                cmd = cl['cmd'].replace('%h', server_addr).replace('%p', server_port)
+                ))
 
     topo = SingleSwitchTopo(args.behavioral_exe,
                             args.json,
                             args.thrift_port,
                             args.pcap_dump,
-                            num_hosts)
+                            hosts)
     net = Mininet(topo = topo,
                   link = TCLink,
                   host = P4Host,
@@ -99,49 +136,43 @@ def main():
     net.start()
 
 
-    sw_mac = ["00:aa:bb:00:00:%02x" % n for n in xrange(num_hosts)]
 
-    sw_addr = ["10.0.%d.1" % n for n in xrange(num_hosts)]
-
-    store_addr, store_port = "10.0.0.10", "9999"
-
-    for n in xrange(num_hosts):
-        h = net.get('h%d' % (n + 1))
-        if mode == "l2":
+    for n, host in enumerate(hosts):
+        h = net.get(host['name'])
+        if args.mode == "l2":
             h.setDefaultRoute("dev eth0")
         else:
-            h.setARP(sw_addr[n], sw_mac[n])
-            h.setDefaultRoute("dev eth0 via %s" % sw_addr[n])
+            h.setARP(host['sw_addr'], host['sw_mac'])
+            h.setDefaultRoute("dev eth0 via %s" % host['sw_addr'])
 
-    for n in xrange(num_hosts):
-        h = net.get('h%d' % (n + 1))
+    for host in hosts:
+        h = net.get(host['name'])
         h.describe()
 
 
     sleep(1)
 
-    with open('./commands.txt', 'r') as f:
-        p4_commands = f.read()
-    if p4_commands[-1] != "\n": p4_commands += "\n"
-    for n in xrange(num_hosts + 1):
-        p4_commands += "table_add send_frame rewrite_mac %d => 00:aa:bb:00:00:%02x\n" % (n+1, n)
-        p4_commands += "table_add forward set_dmac 10.0.%d.10 => 00:04:00:00:00:%02x\n" % (n, n)
-        p4_commands += "table_add ipv4_lpm set_nhop 10.0.%d.10/32 => 10.0.%d.10 %d\n" % (n, n, n+1)
+    with open(args.entries, 'r') as f:
+        p4_t_entries = f.read()
+    if p4_t_entries[-1] != "\n": p4_t_entries += "\n"
+    for n, host in enumerate(hosts):
+        p4_t_entries += "table_add send_frame rewrite_mac %d => %s\n" % (n+1, host['mac'])
+        p4_t_entries += "table_add forward set_dmac %s => %s\n" % (host['ip'], host['mac'])
+        p4_t_entries += "table_add ipv4_lpm set_nhop %s/32 => %s %d\n" % (host['ip'], host['ip'], n+1)
     if args.disable_cache:
-        p4_commands += "table_set_default gotthard_cache_table _no_op\n"
+        p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
     p = subprocess.Popen(['./add_entries_stdin.sh'], stdin=subprocess.PIPE)
-    p.communicate(input=p4_commands)
+    p.communicate(input=p4_t_entries)
 
-    store = net.get('h1')
-    store_proc = store.popen(args.store_cmd.replace('%p', store_port))
+    server = net.get(hosts[0]['name'])
+    server_proc = server.popen(hosts[0]['cmd'])
     sleep(0.5)
 
     client_procs = []
-    for n in xrange(1, num_hosts):
-        h = net.get('h%d' % (n + 1))
-        command = args.client_cmd.replace('%h', store_addr).replace('%p', store_port)
-        print h.name, command
-        p = h.popen(command)
+    for host in hosts[1:]:
+        h = net.get(host['name'])
+        print h.name, host['cmd']
+        p = h.popen(host['cmd'])
         client_procs.append(p)
 
     if args.cli:
@@ -152,11 +183,11 @@ def main():
         if p.returncode is None:
             p.wait()
             print p.communicate()
-    if store_proc.returncode is None:
-        store_proc.send_signal(signal.SIGINT)
+    if server_proc.returncode is None:
+        server_proc.send_signal(signal.SIGINT)
         sleep(0.2)
-        if store_proc.returncode is None:
-            store_proc.kill()
+        if server_proc.returncode is None:
+            server_proc.kill()
 
     net.stop()
 

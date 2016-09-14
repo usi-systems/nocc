@@ -1,0 +1,7 @@
+{
+    "clients": [
+        {"cmd": "../simple_store/client_inc.py -n 1 -c 50 %h %p", "delay": 1},
+        {"cmd": "../simple_store/client_inc.py -n 1 -c 50 %h %p", "delay": 1}
+    ],
+    "server": {"cmd": "../simple_store/store.py -p %p --log store.log", "delay": 2}
+}

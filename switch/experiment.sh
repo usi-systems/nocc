@@ -28,11 +28,12 @@ echo $P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
 $P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
 sudo python experiment.py \
     --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
-    --store-delay 2 \
-    --client-delay 1 \
-    --num-clients 2 \
-    --client-cmd "../simple_store/client_inc.py -n 1 -c 50 %h %p" \
-    --store-cmd "../simple_store/store.py -p %p --log store.log" \
+    --config ./simple_inc_experiment.json \
     --json simple_router.json
 exit
     --disable-cache \
+    --client-cmd "../simple_store/client_inc.py -n 1 -c 50 %h %p" \
+    --server-cmd "../simple_store/store.py -p %p --log store.log" \
+    --num-clients 2 \
+    --server-delay 2 \
+    --client-delay 1 \

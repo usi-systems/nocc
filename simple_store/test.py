@@ -1,5 +1,5 @@
+#!/usr/bin/env python2
 import argparse
-import socket
 from common import *
 
 parser = argparse.ArgumentParser()
