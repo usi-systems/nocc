@@ -96,11 +96,20 @@ def main():
         conf = dict(server=dict(cmd=args.server_cmd),
                     clients=[dict(cmd=args.client_cmd) for _ in xrange(args.num_clients)])
 
+    if not 'switch' in conf: conf['switch'] = dict(disable_cache=args.disable_cache)
+
+    conf['dir'] = os.path.dirname(os.path.abspath(args.config if args.config else './'))
+    conf['log_dir'] = os.path.join(conf['dir'], 'logs')
+    if not os.path.isdir(conf['log_dir']):
+        if os.path.exists(conf['log_dir']): raise Exception('Log dir exists and is not a dir')
+        os.mkdir(conf['log_dir'])
+
     hosts = []
     srv = conf['server']
     server_addr = srv['addr'] if 'addr' in srv else "10.0.0.10"
     server_port = srv['port'] if 'port' in srv else "9999"
 
+    server_log = os.path.join(conf['log_dir'], 'server.log')
     hosts.append(dict(
             name = srv['name'] if 'name' in srv else 'h1',
             ip = srv['ip'] if 'ip' in srv else "10.0.0.10",
@@ -108,20 +117,22 @@ def main():
             mac = srv['mac'] if 'mac' in srv else '00:04:00:00:00:00',
             sw_mac = srv['sw_mac'] if 'sw_mac' in srv else "00:aa:bb:00:00:00",
             delay = srv['delay'] if 'delay' in srv else args.server_delay,
-            cmd = srv['cmd'].replace('%h', server_addr).replace('%p', server_port)
+            cmd = srv['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%l', server_log)
             ))
     for n, cl in enumerate(conf['clients']):
         assert(type(cl) is dict and 'cmd' in cl)
         h = n + 1
-        hosts.append(dict(
+        think_s = cl['think_s'] if 'think_s' in cl else 0
+        host = dict(
                 name = cl['name'] if 'name' in cl else 'h%d' % (h + 1),
                 ip = cl['ip'] if 'ip' in cl else "10.0.%d.10" % h,
                 sw_addr = cl['sw_addr'] if 'sw_addr' in cl else "10.0.%d.1" % h,
                 mac = cl['mac'] if 'mac' in cl else '00:04:00:00:00:%02x' % h,
                 sw_mac = cl['sw_mac'] if 'sw_mac' in cl else "00:aa:bb:00:00:%02x" % h,
-                delay = cl['delay'] if 'delay' in cl else args.client_delay,
-                cmd = cl['cmd'].replace('%h', server_addr).replace('%p', server_port)
-                ))
+                delay = cl['delay'] if 'delay' in cl else args.client_delay)
+        host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
+        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%l', host['log'])
+        hosts.append(host)
 
     topo = SingleSwitchTopo(args.behavioral_exe,
                             args.json,
@@ -159,7 +170,7 @@ def main():
         p4_t_entries += "table_add send_frame rewrite_mac %d => %s\n" % (n+1, host['mac'])
         p4_t_entries += "table_add forward set_dmac %s => %s\n" % (host['ip'], host['mac'])
         p4_t_entries += "table_add ipv4_lpm set_nhop %s/32 => %s %d\n" % (host['ip'], host['ip'], n+1)
-    if args.disable_cache:
+    if conf['switch']['disable_cache']:
         p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
     p = subprocess.Popen(['./add_entries_stdin.sh'], stdin=subprocess.PIPE)
     p.communicate(input=p4_t_entries)

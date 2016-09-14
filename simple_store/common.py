@@ -105,6 +105,7 @@ class RespMsg(BaseMsg):
 
     def __iter__(self):
         yield 'value', self.value.rstrip('\0')
+        yield 'status', status_to_string[self.status]
         for f in ['cl_id', 'req_id', 'key', 'version', 'null_val', 'updated', 'from_switch']:
             yield f, getattr(self, f)
 
@@ -182,7 +183,9 @@ class StoreClient:
         self._log("sent", req=req)
         data, fromaddr = self.sock.recvfrom(RESPMSG_SIZE)
         assert(fromaddr == self.store_addr)
-        return RespMsg(binstr=data)
+        res = RespMsg(binstr=data)
+        self._log("received", res=res)
+        return res
 
 
 class GotthardLogger:
@@ -194,7 +197,7 @@ class GotthardLogger:
         l = dict(time=time.time(), event=event)
         if req: l['req'] = dict(req)
         if res: l['res'] = dict(res)
-        self.logfile.write(json.dumps(l) + "\n")
+        self.logfile.write(json.dumps(l, sort_keys=True) + "\n")
 
     def close(self):
         if self.closed: return

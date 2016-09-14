@@ -5,8 +5,8 @@ from common import *
 
 
 class IncClient(Thread, StoreClient):
-    def __init__(self, count, store_addr):
-        StoreClient.__init__(self, store_addr=store_addr)
+    def __init__(self, count, log, store_addr):
+        StoreClient.__init__(self, store_addr=store_addr, log_filename=log)
         self.count = count
         Thread.__init__(self)
 
@@ -30,10 +30,11 @@ if __name__ == '__main__':
     parser.add_argument("port", type=int, help="server port")
     parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=2)
     parser.add_argument("--count", "-c", type=int, help="number of +1 increments to perform", default=1000)
+    parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     args = parser.parse_args()
 
     store_addr = (args.host, args.port)
 
-    clients = [IncClient(args.count, store_addr) for _ in range(args.num_clients)]
+    clients = [IncClient(args.count, args.log, store_addr) for _ in range(args.num_clients)]
     for cl in clients: cl.start()
     for cl in clients: cl.join()
