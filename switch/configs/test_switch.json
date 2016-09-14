@@ -1,0 +1,6 @@
+{
+    "clients": [
+        {"cmd": "../simple_store/test_switch.py %h %p"}
+    ],
+    "server": {"cmd": "../simple_store/store.py -p %p --log store.log"}
+}

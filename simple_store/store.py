@@ -17,10 +17,8 @@ store = Store()
 
 log = None
 if args.log:
-    log = open(args.log, 'wa')
-
+    log = GotthardLogger(args.log)
     def handler(signum, frame):
-        log.flush()
         log.close()
     signal.signal(signal.SIGINT, handler)
 
@@ -28,6 +26,7 @@ if args.log:
 while True:
     data, addr = sock.recvfrom(REQMSG_SIZE)
     req = ReqMsg(binstr=data)
+    if log: log.log("received", req=req)
     key, value, version = 0, 0, 0
     op = req.op()
 
@@ -37,7 +36,7 @@ while True:
     elif op == OP_R:
         (status, key, value, version) = store.read(key=req.r_key)
     elif op == OP_W:
-        value = None if req.rm else req.w_value # w(key, None) is treated as remove
+        value = None if req.null_val else req.w_value # w(key, None) is treated as remove
         (status, key, value, version) = store.write(key=req.w_key, value=value)
     else:
         raise Exception("Received a message with empty read and write fields")
@@ -47,7 +46,7 @@ while True:
     resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=status, key=key, version=version, value=value, updated=updated)
 
     print req, " => ", resp
-    if log: log.write("%f %s %s\n" % (time.time(), req, resp))
     sock.sendto(resp.pack(), addr)
+    if log: log.log("sent", res=resp)
 
 if log: log.close()

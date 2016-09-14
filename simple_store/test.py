@@ -56,7 +56,7 @@ assert(resp.status == STATUS_REJECT)
 assert(resp.updated == 0)
 
 # Try a good r/w (assume key doesn't exist)
-resp = cl.req(w_key=1, rm=True)
+resp = cl.req(w_key=1, null_val=True)
 assert(resp.status == STATUS_OK)
 resp = cl.req(r_key=1, r_version=0, w_key=1, w_value='x')
 assert(resp.status == STATUS_OK)
@@ -65,7 +65,7 @@ assert(resp.updated == 1)
 
 # Delete keys
 for i in range(3):
-    resp1 = cl.req(w_key=i+1, rm=True)
+    resp1 = cl.req(w_key=i+1, null_val=True)
     assert(resp1.status == STATUS_OK)
     assert(resp1.key == i+1)
     assert(resp1.version == 0)

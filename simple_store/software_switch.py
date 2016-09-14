@@ -57,12 +57,13 @@ class ClientSock(asyncore.dispatcher):
         if req.r_key != 0 and req.w_key != 0: # RW operation
             if self.cache.hit(req.r_key) and not self.cache.sameVersion(req.r_key, req.r_version):
                 # Do an early reject:
-                reject_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_REJECT)
+                reject_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_REJECT, from_switch=1,
+                        key=req.r_key, value=self.cache.values[req.r_key], version=self.cache.versions[req.r_key])
                 self.sendto(reject_msg.pack(), cl_addr)
                 return
         elif req.r_key != 0:                  # R operation
             if self.cache.hit(req.r_key):
-                resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OK,
+                resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OK, from_switch=1,
                         key=req.r_key, value=self.cache.values[req.r_key], version=self.cache.versions[req.r_key])
                 self.sendto(resp.pack(), cl_addr)
                 return
@@ -102,7 +103,7 @@ class SoftwareSwitch(asyncore.dispatcher):
 
         # Update our cache, if necessary:
         if resp.status == STATUS_OK and resp.key != 0:
-            self.cache.insert(key=resp.key, version=resp.version, value=value)
+            self.cache.insert(key=resp.key, version=resp.version, value=resp.value)
 
         # Finally, forward the response:
         self.client_sock.sendto_client(data=data, cl_id=resp.cl_id)
