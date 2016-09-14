@@ -2,12 +2,14 @@
 import argparse
 from threading import Thread
 from common import *
+import time
 
 
 class IncClient(Thread, StoreClient):
-    def __init__(self, count, log, store_addr):
+    def __init__(self, count, log, store_addr, think):
         StoreClient.__init__(self, store_addr=store_addr, log_filename=log)
         self.count = count
+        self.think = think
         Thread.__init__(self)
 
     def run(self):
@@ -20,6 +22,7 @@ class IncClient(Thread, StoreClient):
                 resp = self.req(r_key=1, r_version=cached_version, w_key=1, w_value=str(cached_value))
                 cached_version, cached_value = resp.version, int(resp.value.rstrip('\0'))
                 if resp.status == STATUS_OK: break
+            if self.think: time.sleep(self.think)
 
         print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp.value.rstrip('\0')
 
@@ -32,13 +35,14 @@ if __name__ == '__main__':
     parser.add_argument("--count", "-c", type=int, help="number of +1 increments to perform", default=1000)
     parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     parser.add_argument("--id", "-i", type=int, help="assign cl_id starting from this value", default=None)
+    parser.add_argument("--think", "-t", type=float, help="think time (s) between increments", default=None)
     args = parser.parse_args()
 
     store_addr = (args.host, args.port)
 
     clients = []
     for n in xrange(args.num_clients):
-        cl = IncClient(args.count, args.log, store_addr)
+        cl = IncClient(args.count, args.log, store_addr, args.think)
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 
