@@ -136,7 +136,7 @@ class Store:
     def readwrite(self, r_key=None, r_version=None, w_key=None, w_value=None):
         assert(r_key != 0)
         if r_key in self.values.keys() and self.versions[r_key] != r_version:
-            return (STATUS_REJECT, w_key, '', 0)
+            return (STATUS_REJECT, r_key, self.values[r_key], self.versions[r_key])
         return self.write(key=w_key, value=w_value)
 
     def __str__(self):

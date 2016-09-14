@@ -176,6 +176,13 @@ def main():
     p = subprocess.Popen(['./add_entries_stdin.sh'], stdin=subprocess.PIPE)
     p.communicate(input=p4_t_entries)
 
+    with open(os.path.join(conf['log_dir'], 'summary.txt')) as f:
+        cmd_line = ' '.join(['"%s"'%a if ' ' in a else a for a in sys.argv])
+        git_rev = subprocess.Popen(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE).communicate()[0].strip()
+        f.write("command: %s\n"%cmd_line)
+        f.write("git revision: %s\n"%git_rev)
+        f.close()
+
     server = net.get(hosts[0]['name'])
     server_proc = server.popen(hosts[0]['cmd'])
     sleep(0.5)
