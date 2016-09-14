@@ -198,9 +198,13 @@ action do_gotthard_res () {
     version_register[gotthard_res.key] = gotthard_res.version;
 }
 
+action _no_op () {
+}
+
 table gotthard_res_table {
     actions {
         do_gotthard_res;
+        _no_op; // use this action to disable caching
     }
     size: 1;
 }
@@ -222,9 +226,6 @@ action do_gotthard_cache_lookup () {
     gotthard_req_metadata.is_cache_enabled = (bit<1>)1;
     gotthard_req_metadata.is_cache_hit = version_register[gotthard_req.r_key] != 0 ? (bit<1>) 1 : 0;
     gotthard_req_metadata.is_same_version = version_register[gotthard_req.r_key] == gotthard_req.r_version ? (bit<1>) 1 : 0;
-}
-
-action _no_op () {
 }
 
 table gotthard_cache_table {
@@ -259,6 +260,8 @@ action do_gotthard_reject () {
 
     remove_header(gotthard_req);
     add_header(gotthard_res);
+    gotthard_res.cl_id = gotthard_req.cl_id;
+    gotthard_res.req_id = gotthard_req.req_id;
     gotthard_res.status = GOTTHARD_STATUS_REJECT;
     gotthard_res.key = gotthard_req.r_key;
     gotthard_res.version = version_register[gotthard_req.r_key];

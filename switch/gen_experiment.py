@@ -34,5 +34,5 @@ if os.path.exists(experiment_dir): raise Exception('Experiment directory already
 os.mkdir(experiment_dir)
 
 conf_filename = os.path.join(experiment_dir, 'experiment.json')
-with open(conf_filename, 'w') as f:
+with os.fdopen(os.open(conf_filename, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0666), 'a') as f:
     json.dump(conf, f, indent=4)

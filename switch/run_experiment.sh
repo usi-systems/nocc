@@ -20,4 +20,5 @@ $P4C_BM_SCRIPT p4src/simple_router.p4 --json simple_router.json --p4-v1.1
 sudo python experiment.py \
     --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
     --config $CONF_FILE \
+    --pcap-dump \
     --json simple_router.json

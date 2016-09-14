@@ -2,6 +2,7 @@ import struct
 import socket
 import json
 import time
+import os
 
 TYPE_REQ = 0
 TYPE_RES = 1
@@ -148,6 +149,7 @@ class StoreClient:
 
     def __init__(self, store_addr=None, log_filename=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.settimeout(10.0)
         self.sock.bind(('', 0))
         self.cl_addr = self.sock.getsockname()
         self.cl_name = ':'.join(map(str, self.cl_addr))
@@ -190,7 +192,7 @@ class StoreClient:
 
 class GotthardLogger:
     def __init__(self, filename):
-        self.logfile = open(filename, 'a')
+        self.logfile = os.fdopen(os.open(filename, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0666), 'a')
         self.closed = False
 
     def log(self, event, req=None, res=None):

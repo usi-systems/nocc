@@ -51,7 +51,7 @@ parser.add_argument('--disable-cache', help="disable the switch cach",
 parser.add_argument('--json', help='Path to JSON config file',
                     type=str, action="store", required=True)
 parser.add_argument('--pcap-dump', help='Dump packets on interfaces to pcap files',
-                    type=str, action="store", required=False, default=False)
+                    action="store_true", required=False, default=False)
 parser.add_argument('--server-delay', help='Delay (ms) between switch and server',
                     type=int, action="store", required=False, default=0)
 parser.add_argument('--client-delay', help='Delay (ms) between switch and client',
@@ -172,6 +172,7 @@ def main():
         p4_t_entries += "table_add ipv4_lpm set_nhop %s/32 => %s %d\n" % (host['ip'], host['ip'], n+1)
     if conf['switch']['disable_cache']:
         p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
+        p4_t_entries += "table_set_default gotthard_res_table _no_op\n"
     p = subprocess.Popen(['./add_entries_stdin.sh'], stdin=subprocess.PIPE)
     p.communicate(input=p4_t_entries)
 
