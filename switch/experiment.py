@@ -110,7 +110,11 @@ def main():
     server_addr = srv['addr'] if 'addr' in srv else "10.0.0.10"
     server_port = srv['port'] if 'port' in srv else "9999"
 
+    default_think_s = conf['think_s'] if 'think_s' in conf else 0
+    default_req_count = conf['req_count'] if 'req_count' in conf else 1
+
     server_log = os.path.join(conf['log_dir'], 'server.log')
+    if os.path.exists(server_log): os.remove(server_log)
     hosts.append(dict(
             name = srv['name'] if 'name' in srv else 'h1',
             ip = srv['ip'] if 'ip' in srv else "10.0.0.10",
@@ -123,7 +127,8 @@ def main():
     for n, cl in enumerate(conf['clients']):
         assert(type(cl) is dict and 'cmd' in cl)
         h = n + 1
-        think_s = cl['think_s'] if 'think_s' in cl else 0
+        think_s = cl['think_s'] if 'think_s' in cl else default_think_s
+        req_count = cl['req_count'] if 'req_count' in cl else default_req_count
         host = dict(
                 name = cl['name'] if 'name' in cl else 'h%d' % (h + 1),
                 ip = cl['ip'] if 'ip' in cl else "10.0.%d.10" % h,
@@ -132,7 +137,8 @@ def main():
                 sw_mac = cl['sw_mac'] if 'sw_mac' in cl else "00:aa:bb:00:00:%02x" % h,
                 delay = cl['delay'] if 'delay' in cl else args.client_delay)
         host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
-        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%l', host['log'])
+        if os.path.exists(host['log']): os.remove(host['log'])
+        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%c', str(req_count)).replace('%l', host['log'])
         hosts.append(host)
 
     topo = SingleSwitchTopo(args.behavioral_exe,

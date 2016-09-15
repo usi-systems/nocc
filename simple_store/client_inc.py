@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("host", type=str, help="server hostname")
     parser.add_argument("port", type=int, help="server port")
-    parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=2)
+    parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=1)
     parser.add_argument("--count", "-c", type=int, help="number of +1 increments to perform", default=1000)
     parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     parser.add_argument("--id", "-i", type=int, help="assign cl_id starting from this value", default=None)
