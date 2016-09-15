@@ -20,6 +20,7 @@ import signal
 import os
 import sys
 import json
+import time
 from sourcer import sourceFile
 
 env_vars = sourceFile('./env.sh')
@@ -176,9 +177,10 @@ def main():
     p = subprocess.Popen(['./add_entries_stdin.sh'], stdin=subprocess.PIPE)
     p.communicate(input=p4_t_entries)
 
-    with open(os.path.join(conf['log_dir'], 'summary.txt')) as f:
+    with os.fdopen(os.open(os.path.join(conf['log_dir'], 'summary.txt'), os.O_CREAT | os.O_WRONLY, 0666), 'w') as f:
         cmd_line = ' '.join(['"%s"'%a if ' ' in a else a for a in sys.argv])
         git_rev = subprocess.Popen(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE).communicate()[0].strip()
+        f.write("time: %s\n"%time.strftime("%a, %d %b %Y %H:%M:%S %z"))
         f.write("command: %s\n"%cmd_line)
         f.write("git revision: %s\n"%git_rev)
         f.close()
