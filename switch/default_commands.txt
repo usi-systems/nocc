@@ -1,0 +1,7 @@
+table_set_default send_frame _drop
+table_set_default forward _drop
+table_set_default ipv4_lpm _drop
+table_set_default gotthard_res_table do_gotthard_res
+table_set_default gotthard_cache_table do_gotthard_cache_lookup
+table_set_default gotthard_req_hit_table do_gotthard_hit
+table_set_default gotthard_req_reject_table do_gotthard_reject

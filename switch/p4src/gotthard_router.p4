@@ -1,18 +1,3 @@
-/* Copyright 2013-present Barefoot Networks, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 #define MAX_REG_INST 65000
 
 header_type ethernet_t {
@@ -299,6 +284,10 @@ table gotthard_req_hit_table {
     size: 1;
 }
 
+action _drop() {
+    drop();
+}
+
 header_type routing_metadata_t {
     fields {
         bit<32> nhop_ipv4;
@@ -320,6 +309,7 @@ table ipv4_lpm {
     }
     actions {
         set_nhop;
+        _drop;
     }
     size: 1024;
 }
@@ -334,6 +324,7 @@ table forward {
     }
     actions {
         set_dmac;
+        _drop;
     }
     size: 512;
 }
@@ -348,6 +339,7 @@ table send_frame {
     }
     actions {
         rewrite_mac;
+        _drop;
     }
     size: 256;
 }

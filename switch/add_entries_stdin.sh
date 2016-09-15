@@ -20,4 +20,10 @@ source $THIS_DIR/env.sh
 
 CLI_PATH=$BMV2_PATH/targets/simple_switch/sswitch_CLI
 
-$CLI_PATH simple_router.json
+if [ $# -lt 1 ]; then
+    echo "Please specify JSON source file"
+    exit 1
+fi
+JSON_FILE=$1
+
+$CLI_PATH $JSON_FILE

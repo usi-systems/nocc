@@ -63,8 +63,8 @@ parser.add_argument('--server-cmd', help='Command to start server',
                     type=str, action="store", required=False, default=False)
 parser.add_argument('--config', help='JSON client config file',
                     type=str, action="store", required=False, default=False)
-parser.add_argument('--entries', help='table entries (commands.txt) to add to the switch',
-                    type=str, action="store", required=False, default='commands.txt')
+parser.add_argument('--entries', help='default table entries (commands.txt) to add to the switch',
+                    type=str, action="store", required=False, default='default_commands.txt')
 
 args = parser.parse_args()
 
@@ -174,7 +174,8 @@ def main():
     if conf['switch']['disable_cache']:
         p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
         p4_t_entries += "table_set_default gotthard_res_table _no_op\n"
-    p = subprocess.Popen(['./add_entries_stdin.sh'], stdin=subprocess.PIPE)
+    print p4_t_entries
+    p = subprocess.Popen(['./add_entries_stdin.sh', args.json], stdin=subprocess.PIPE)
     p.communicate(input=p4_t_entries)
 
     with os.fdopen(os.open(os.path.join(conf['log_dir'], 'summary.txt'), os.O_CREAT | os.O_WRONLY, 0666), 'w') as f:
@@ -185,15 +186,17 @@ def main():
         f.write("git revision: %s\n"%git_rev)
         f.close()
 
+    devnull = open('/dev/null', 'w')
+
     server = net.get(hosts[0]['name'])
-    server_proc = server.popen(hosts[0]['cmd'])
+    server_proc = server.popen(hosts[0]['cmd'], stdout=devnull)
     sleep(0.5)
 
     client_procs = []
     for host in hosts[1:]:
         h = net.get(host['name'])
         print h.name, host['cmd']
-        p = h.popen(host['cmd'])
+        p = h.popen(host['cmd'], stdout=devnull)
         client_procs.append(p)
 
     if args.cli:
