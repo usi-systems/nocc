@@ -111,6 +111,7 @@ def main():
     server_port = srv['port'] if 'port' in srv else "9999"
 
     default_think_s = conf['think_s'] if 'think_s' in conf else 0
+    default_think_v = conf['think_v'] if 'think_v' in conf else 0
     default_req_count = conf['req_count'] if 'req_count' in conf else 1
 
     server_log = os.path.join(conf['log_dir'], 'server.log')
@@ -128,6 +129,7 @@ def main():
         assert(type(cl) is dict and 'cmd' in cl)
         h = n + 1
         think_s = cl['think_s'] if 'think_s' in cl else default_think_s
+        think_v = cl['think_v'] if 'think_v' in cl else default_think_v
         req_count = cl['req_count'] if 'req_count' in cl else default_req_count
         host = dict(
                 name = cl['name'] if 'name' in cl else 'h%d' % (h + 1),
@@ -138,7 +140,7 @@ def main():
                 delay = cl['delay'] if 'delay' in cl else args.client_delay)
         host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
         if os.path.exists(host['log']): os.remove(host['log'])
-        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%c', str(req_count)).replace('%l', host['log'])
+        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%v', str(think_v)).replace('%c', str(req_count)).replace('%l', host['log'])
         hosts.append(host)
 
     topo = SingleSwitchTopo(args.behavioral_exe,

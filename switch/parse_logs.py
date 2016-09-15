@@ -74,6 +74,8 @@ def getExperimentStats(experiment_dir):
                 D=conf['server']['delay'],
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
+                think_var=conf['think_v'] if 'think_v' in conf else 0,
+                disabled=conf['switch']['disable_cache'],
                 req_count=conf['req_count'])
 
 

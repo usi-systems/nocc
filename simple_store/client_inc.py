@@ -2,27 +2,31 @@
 import argparse
 from threading import Thread
 from common import *
-import time
+from random import gauss
+from time import sleep
 
 
 class IncClient(Thread, StoreClient):
-    def __init__(self, count, log, store_addr, think):
+    def __init__(self, count, log, store_addr, think, think_var):
         StoreClient.__init__(self, store_addr=store_addr, logger=log)
         self.count = count
         self.think = think
+        self.think_var = think_var
         Thread.__init__(self)
 
     def run(self):
         # Initialize key/value if it's not already there
         resp = self.req(r_key=1, r_version=0, w_key=1, w_value=str(0))
         cached_version, cached_value = resp.version, int(resp.value.rstrip('\0'))
+        if self.think and self.think_var: think_sigma = self.think * self.think_var
         for i in range(self.count):
             while True:
                 cached_value += 1
                 resp = self.req(r_key=1, r_version=cached_version, w_key=1, w_value=str(cached_value))
                 cached_version, cached_value = resp.version, int(resp.value.rstrip('\0'))
                 if resp.status == STATUS_OK: break
-            if self.think: time.sleep(self.think)
+            if self.think:
+                sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
 
         print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp.value.rstrip('\0')
 
@@ -36,6 +40,7 @@ if __name__ == '__main__':
     parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     parser.add_argument("--id", "-i", type=int, help="assign cl_id starting from this value", default=None)
     parser.add_argument("--think", "-t", type=float, help="think time (s) between increments", default=None)
+    parser.add_argument("--think-var", "-v", type=float, help="variance used for generating random think time", default=None)
     args = parser.parse_args()
 
     store_addr = (args.host, args.port)
@@ -43,7 +48,7 @@ if __name__ == '__main__':
     logger = GotthardLogger(args.log) if args.log else None
     clients = []
     for n in xrange(args.num_clients):
-        cl = IncClient(args.count, logger, store_addr, args.think)
+        cl = IncClient(args.count, logger, store_addr, args.think, args.think_var)
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 

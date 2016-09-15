@@ -12,6 +12,7 @@ parser.add_argument("--client-cmd", "-c", type=str, help="command to execute on 
 parser.add_argument("--server-cmd", "-s", type=str, help="command to execute on server", required=True)
 parser.add_argument("--req-count", "-r", type=int, help="client request count (e.g. # of inc. transaction)", default=None)
 parser.add_argument("--think-time", "-t", type=float, help="client think time (s)", default=None)
+parser.add_argument("--think-var", "-v", type=float, help="variance used for generating random think time", default=None)
 parser.add_argument('--server-delta', help='Delay (ms) between switch and server',
                     type=int, required=False, default=0)
 parser.add_argument('--client-delta', help='Delay (ms) between switch and client',
@@ -31,14 +32,15 @@ for n in xrange(args.num_clients):
     conf['clients'].append(cl)
 
 conf['think_s'] = 0 if args.think_time is None else args.think_time
+conf['think_v'] = 0 if args.think_var is None else args.think_var
 if args.req_count: conf['req_count'] = args.req_count
 
 if args.out_dir:
     experiment_dir = os.path.abspath(args.out_dir)
 else:
     experiment_dir = os.path.join(os.path.abspath(args.out_parent),
-            "%dd_%dD_%dclients_%dreqs_%gthink_%s" % (args.client_delta, args.server_delta,
-                args.num_clients, args.req_count, args.think_time,
+            "%dd_%dD_%dclients_%dreqs_%gthink%g_%s" % (args.client_delta, args.server_delta,
+                args.num_clients, args.req_count, args.think_time, args.think_var,
                 'disabled' if args.disable_cache else 'enabled'))
 
 
