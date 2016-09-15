@@ -7,7 +7,7 @@ import time
 
 class IncClient(Thread, StoreClient):
     def __init__(self, count, log, store_addr, think):
-        StoreClient.__init__(self, store_addr=store_addr, log_filename=log)
+        StoreClient.__init__(self, store_addr=store_addr, logger=log)
         self.count = count
         self.think = think
         Thread.__init__(self)
@@ -40,11 +40,13 @@ if __name__ == '__main__':
 
     store_addr = (args.host, args.port)
 
+    logger = GotthardLogger(args.log) if args.log else None
     clients = []
     for n in xrange(args.num_clients):
-        cl = IncClient(args.count, args.log, store_addr, args.think)
+        cl = IncClient(args.count, logger, store_addr, args.think)
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 
     for cl in clients: cl.start()
     for cl in clients: cl.join()
+    if logger: logger.close()

@@ -27,6 +27,7 @@ while True:
     data, addr = sock.recvfrom(REQMSG_SIZE)
     req = ReqMsg(binstr=data)
     if log: log.log("received", req=req)
+    w_value = None if req.null_val else req.w_value # w(key, None) is treated as remove
     key, value, version = 0, 0, 0
     op = req.op()
 
@@ -36,16 +37,16 @@ while True:
     elif op == OP_R:
         (status, key, value, version) = store.read(key=req.r_key)
     elif op == OP_W:
-        value = None if req.null_val else req.w_value # w(key, None) is treated as remove
-        (status, key, value, version) = store.write(key=req.w_key, value=value)
+        (status, key, value, version) = store.write(key=req.w_key, value=w_value)
     else:
         raise Exception("Received a message with empty read and write fields")
 
     updated = 1 if status == STATUS_OK and (op == OP_W or op == OP_RW) else 0
 
-    resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=status, key=key, version=version, value=value, updated=updated)
+    resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, updated=updated,
+            status=status, key=key, version=version, value=value)
 
-    print req, " => ", resp
+    #print req, " => ", resp
     sock.sendto(resp.pack(), addr)
     if log: log.log("sent", res=resp)
 

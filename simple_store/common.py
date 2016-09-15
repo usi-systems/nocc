@@ -3,6 +3,7 @@ import socket
 import json
 import time
 import os
+import threading
 
 TYPE_REQ = 0
 TYPE_RES = 1
@@ -55,7 +56,7 @@ class ReqMsg(BaseMsg):
     def op(self):
         if self.r_key != 0 and self.w_key != 0: return OP_RW
         elif self.r_key != 0: return OP_R
-        elif self.w_key != 0 : return OP_W
+        elif self.w_key != 0: return OP_W
 
     def unpack(self, binstr):
         self.flags, self.cl_id, self.req_id, self.r_key, self.r_version, self.w_key, self.w_value = struct.unpack(reqmsg_fmt, binstr)
@@ -147,7 +148,7 @@ class Store:
 
 class StoreClient:
 
-    def __init__(self, store_addr=None, log_filename=None):
+    def __init__(self, store_addr=None, logger=None, log_filename=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(10.0)
         self.sock.bind(('', 0))
@@ -157,7 +158,9 @@ class StoreClient:
         self.store_addr = store_addr
         self.req_id_seq = 0
         self.closed = False
-        self.log = GotthardLogger(log_filename) if log_filename else None
+        self.log = None
+        if logger: self.log = logger
+        elif log_filename: self.log = GotthardLogger(log_filename)
 
     def close(self):
         if self.closed: return
@@ -193,20 +196,29 @@ class StoreClient:
 class GotthardLogger:
     def __init__(self, filename):
         self.logfile = os.fdopen(os.open(filename, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0666), 'a')
-        self.closed = False
+        self.closed = threading.Event()
+        self.last_log = 0
+
+        def heartbeat():
+            while not self.closed.wait(1):
+                if time.time() - self.last_log > 5: self.log("heartbeat")
+                self.logfile.flush()
+        threading.Thread(target=heartbeat).start()
+
 
     def log(self, event, req=None, res=None):
-        l = dict(time=time.time(), event=event)
+        self.last_log = time.time()
+        l = dict(time=self.last_log, event=event)
         if req: l['req'] = dict(req)
         if res: l['res'] = dict(res)
         self.logfile.write(json.dumps(l, sort_keys=True) + "\n")
 
     def close(self):
-        if self.closed: return
+        if self.closed.isSet(): return
+        self.closed.set()
         self.logfile.flush()
         self.logfile.close()
-        self.closed = True
 
     def __exit__(self):
-        if not self.closed:
+        if not self.closed.isSet():
             self.close()
