@@ -98,6 +98,7 @@ def main():
                     clients=[dict(cmd=args.client_cmd) for _ in xrange(args.num_clients)])
 
     if not 'switch' in conf: conf['switch'] = dict(disable_cache=args.disable_cache)
+    if not 'sequential_clients' in conf: conf['sequential_clients'] = False
 
     conf['dir'] = os.path.dirname(os.path.abspath(args.config if args.config else './'))
     conf['log_dir'] = os.path.join(conf['dir'], 'logs')
@@ -200,21 +201,26 @@ def main():
     server_proc = server.popen(hosts[0]['cmd'], stdout=devnull)
     sleep(0.5)
 
+
+    def _wait_for_client(p):
+        print p.communicate()
+        if p.returncode is None:
+            p.wait()
+            print p.communicate()
     client_procs = []
     for host in hosts[1:]:
         h = net.get(host['name'])
         print h.name, host['cmd']
         p = h.popen(host['cmd'], stdout=devnull)
+        if conf['sequential_clients']: _wait_for_client(p)
         client_procs.append(p)
 
     if args.cli:
         CLI( net )
 
-    for p in client_procs:
-        print p.communicate()
-        if p.returncode is None:
-            p.wait()
-            print p.communicate()
+    if not conf['sequential_clients']:
+        for p in client_procs: _wait_for_client(p)
+
     if server_proc.returncode is None:
         server_proc.send_signal(signal.SIGINT)
         sleep(0.2)
