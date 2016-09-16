@@ -11,26 +11,17 @@ from common import *
 
 class SwitchCache:
     def __init__(self):
-        self.keys = []
         self.values = {}
-        self.versions = {}
 
-    def insert(self, key=None, version=None, value=None):
-        if version == 0: # a rm operation
-            del self.versions[key]
-            del self.values[key]
-            self.keys.remove(key)
-        else:
-            self.versions[key] = version
-            self.values[key] = value
-            if not key in self.keys: self.keys.append(key)
+    def insert(self, key=None, value=None):
+        self.values[key] = value
 
     def hit(self, key):
-        return key in self.keys
+        return key in self.values.keys()
 
-    def sameVersion(self, key, version):
+    def sameValue(self, key, value):
         assert(self.hit(key))
-        return version == self.versions[key]
+        return value == self.values[key]
 
 class ClientPort(asyncore.dispatcher):
 
@@ -127,16 +118,16 @@ class SoftwareSwitch:
                 continue
 
             if req.r_key != 0 and req.w_key != 0: # RW operation
-                if self.cache.hit(req.r_key) and not self.cache.sameVersion(req.r_key, req.r_version):
+                if self.cache.hit(req.r_key) and not self.cache.sameValue(req.r_key, req.r_value):
                     # Do an early reject:
                     reject_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_REJECT, from_switch=1,
-                            key=req.r_key, value=self.cache.values[req.r_key], version=self.cache.versions[req.r_key])
+                            key=req.r_key, value=self.cache.values[req.r_key])
                     self._sendToClient(reject_msg)
                     continue
             elif req.r_key != 0:                  # R operation
                 if self.cache.hit(req.r_key):
                     resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OK, from_switch=1,
-                            key=req.r_key, value=self.cache.values[req.r_key], version=self.cache.versions[req.r_key])
+                            key=req.r_key, value=self.cache.values[req.r_key])
                     self._sendToClient(resp)
                     continue
 
@@ -156,7 +147,7 @@ class SoftwareSwitch:
 
             # Update our cache, if necessary:
             if res.status == STATUS_OK and res.key != 0:
-                self.cache.insert(key=res.key, version=res.version, value=res.value)
+                self.cache.insert(key=res.key, value=res.value)
 
             self._sendToClient(res)
 

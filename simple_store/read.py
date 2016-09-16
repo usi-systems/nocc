@@ -15,4 +15,4 @@ assert(resp.type == TYPE_RES)
 if resp.status != STATUS_OK:
     print status_to_string[resp.status]
 else:
-    print resp.version, resp.value.rstrip('\0')
+    print resp.value.rstrip('\0')

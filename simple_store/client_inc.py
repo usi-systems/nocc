@@ -9,21 +9,19 @@ from time import sleep
 class IncClient(Thread, StoreClient):
     def __init__(self, count, log, store_addr, think, think_var):
         StoreClient.__init__(self, store_addr=store_addr, logger=log)
+        Thread.__init__(self)
         self.count = count
         self.think = think
         self.think_var = think_var
-        Thread.__init__(self)
 
     def run(self):
         # Initialize key/value if it's not already there
-        resp = self.req(r_key=1, r_version=0, w_key=1, w_value=str(0))
-        cached_version, cached_value = resp.version, int(resp.value.rstrip('\0'))
+        resp = self.req(r_key=1, r_value='', w_key=1, w_value=str(0))
         if self.think and self.think_var: think_sigma = self.think * self.think_var
         for i in range(self.count):
             while True:
-                cached_value += 1
-                resp = self.req(r_key=1, r_version=cached_version, w_key=1, w_value=str(cached_value))
-                cached_version, cached_value = resp.version, int(resp.value.rstrip('\0'))
+                cached_value = int(resp.value.rstrip('\0'))
+                resp = self.req(r_key=1, r_value=str(cached_value), w_key=1, w_value=str(cached_value+1))
                 if resp.status == STATUS_OK: break
             if self.think:
                 sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)

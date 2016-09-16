@@ -9,21 +9,20 @@ TYPE_REQ = 0
 TYPE_RES = 1
 
 STATUS_OK = 0
-STATUS_NOTFOUND = 1
-STATUS_REJECT = 2
+STATUS_ABORT = 1
 
-status_to_string = ['STATUS_OK', 'STATUS_NOTFOUND', 'STATUS_REJECT']
+status_to_string = ['STATUS_OK', 'STATUS_ABORT']
 
 OP_R =  1
 OP_W =  2
 OP_RW = 3
 
-reqmsg_fmt = '!B I i i i i 100s'
+reqmsg_fmt = '!B I i i i 100s 100s'
 REQMSG_SIZE = struct.Struct(reqmsg_fmt).size
 
 class BaseMsg:
     flags = 0
-    FLAGS = ['type', 'null_val', 'updated', 'from_switch']
+    FLAGS = ['type', 'updated', 'from_switch']
 
     def __init__(self):
         for f in self.FLAGS: setattr(self, f, 0) # init flags to 0
@@ -41,17 +40,17 @@ class ReqMsg(BaseMsg):
     cl_id = 0
     req_id = 0
     r_key = 0
-    r_version = 0
     w_key = 0
+    r_value = ''
     w_value = ''
 
-    def __init__(self, binstr=None, cl_id=0, req_id=0, null_val=0, r_key=0, r_version=0, w_key=0, w_value=''):
+    def __init__(self, binstr=None, cl_id=0, req_id=0, r_key=0, w_key=0, r_value='', w_value=''):
         BaseMsg.__init__(self)
         self.type = TYPE_REQ
         if binstr is not None:
             self.unpack(binstr)
         else:
-            self.cl_id, self.req_id, self.null_val, self.r_key, self.r_version, self.w_key, self.w_value = cl_id, req_id, null_val, r_key, r_version, w_key, w_value
+            self.cl_id, self.req_id, self.r_key, self.w_key, self.r_value, self.w_value = cl_id, req_id, r_key, w_key, r_value, w_value
 
     def op(self):
         if self.r_key != 0 and self.w_key != 0: return OP_RW
@@ -59,23 +58,24 @@ class ReqMsg(BaseMsg):
         elif self.w_key != 0: return OP_W
 
     def unpack(self, binstr):
-        self.flags, self.cl_id, self.req_id, self.r_key, self.r_version, self.w_key, self.w_value = struct.unpack(reqmsg_fmt, binstr)
+        self.flags, self.cl_id, self.req_id, self.r_key, self.w_key, self.r_value, self.w_value = struct.unpack(reqmsg_fmt, binstr)
         self._unpackflags()
 
     def pack(self):
         self._packflags()
-        return struct.pack(reqmsg_fmt, self.flags, self.cl_id, self.req_id, self.r_key, self.r_version, self.w_key, self.w_value)
+        return struct.pack(reqmsg_fmt, self.flags, self.cl_id, self.req_id, self.r_key, self.w_key, self.r_value, self.w_value)
 
     def __str__(self):
         return "ReqMsg(%s)" % dict(self)
 
     def __iter__(self):
         yield 'w_value', self.w_value.rstrip('\0')
-        for f in ['cl_id', 'req_id', 'r_key', 'r_version', 'w_key', 'null_val', 'updated']:
+        yield 'r_value', self.r_value.rstrip('\0')
+        for f in ['cl_id', 'req_id', 'r_key', 'w_key', 'updated']:
             yield f, getattr(self, f)
 
 
-respmsg_fmt = '!B I i B i i 100s'
+respmsg_fmt = '!B I i B i 100s'
 RESPMSG_SIZE = struct.Struct(respmsg_fmt).size
 
 class RespMsg(BaseMsg):
@@ -83,24 +83,23 @@ class RespMsg(BaseMsg):
     req_id = 0
     status = STATUS_OK
     key = 0
-    version = 0
     value = ''
 
-    def __init__(self, binstr=None, cl_id=0, req_id=0, status=0, key=0, version=0, value='', updated=0, from_switch=0):
+    def __init__(self, binstr=None, cl_id=0, req_id=0, status=0, key=0, value='', updated=0, from_switch=0):
         BaseMsg.__init__(self)
         self.type = TYPE_RES
         if binstr is not None:
             self.unpack(binstr)
         else:
-            self.cl_id, self.req_id, self.status, self.key, self.version, self.value, self.updated, self.from_switch = cl_id, req_id, status, key, version, value, updated, from_switch
+            self.cl_id, self.req_id, self.status, self.key, self.value, self.updated, self.from_switch = cl_id, req_id, status, key, value, updated, from_switch
 
     def unpack(self, binstr):
-        self.flags, self.cl_id, self.req_id, self.status, self.key, self.version, self.value = struct.unpack(respmsg_fmt, binstr)
+        self.flags, self.cl_id, self.req_id, self.status, self.key, self.value = struct.unpack(respmsg_fmt, binstr)
         self._unpackflags()
 
     def pack(self):
         self._packflags()
-        return struct.pack(respmsg_fmt, self.flags, self.cl_id, self.req_id, self.status, self.key, self.version, self.value)
+        return struct.pack(respmsg_fmt, self.flags, self.cl_id, self.req_id, self.status, self.key, self.value)
 
     def __str__(self):
         return "RespMsg(%s)" % dict(self)
@@ -108,42 +107,41 @@ class RespMsg(BaseMsg):
     def __iter__(self):
         yield 'value', self.value.rstrip('\0')
         yield 'status', status_to_string[self.status]
-        for f in ['cl_id', 'req_id', 'key', 'version', 'null_val', 'updated', 'from_switch']:
+        for f in ['cl_id', 'req_id', 'key', 'updated', 'from_switch']:
             yield f, getattr(self, f)
 
 class Store:
     values = {}
-    versions = {}
+    sequences = {}
     seq = 0
 
     def read(self, key=None):
-        if not key in self.values:
-            return (STATUS_NOTFOUND, 0, '', 0)
-        return (STATUS_OK, key, self.values[key], self.versions[key])
+        return (STATUS_OK, key,
+                self.values[key] if key in self.values else '')
 
     def write(self, key=None, value=None):
         if value is None: # w(key, None) is treated as remove
             if key in self.values.keys():
                 del self.values[key]
-                del self.versions[key]
-            new_value, new_version = '', 0
+                del self.sequences[key]
+            new_value = ''
         else:
             self.values[key] = value
             self.seq += 1
-            self.versions[key] = self.seq
-            new_value, new_version = value, self.seq
-        return (STATUS_OK, key, new_value, new_version)
+            self.sequences[key] = self.seq
+            new_value = value
+        return (STATUS_OK, key, new_value)
 
-    def readwrite(self, r_key=None, r_version=None, w_key=None, w_value=None):
+    def readwrite(self, r_key=None, r_value=None, w_key=None, w_value=None):
         assert(r_key != 0)
-        if r_key in self.values.keys() and self.versions[r_key] != r_version:
-            return (STATUS_REJECT, r_key, self.values[r_key], self.versions[r_key])
+        if r_key in self.values.keys() and self.values[r_key] != r_value:
+            return (STATUS_REJECT, r_key, self.values[r_key])
         return self.write(key=w_key, value=w_value)
 
     def __str__(self):
         s = "key\tvers\tvalue\n"
         for key in self.values.keys():
-            s += "%d\t%d\t%s\n" % (key, self.versions[key], self.values[key])
+            s += "%d\t%d\t%s\n" % (key, self.sequences[key], self.values[key])
         return s
 
 class StoreClient:
@@ -171,15 +169,15 @@ class StoreClient:
     def _log(self, *args, **kwargs):
         if self.log: self.log.log(*args, **kwargs)
 
-    def req(self, req_id=None, r_key=0, r_version=0, w_key=0, w_value='', null_val=0):
-        req = self.buildreq(req_id=req_id, r_key=r_key, r_version=r_version, w_key=w_key, w_value=w_value, null_val=null_val)
+    def req(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
+        req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
         return self.sendreq(req)
 
-    def buildreq(self, req_id=None, r_key=0, r_version=0, w_key=0, w_value='', null_val=0):
+    def buildreq(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         if req_id is None:
             self.req_id_seq += 1
             req_id = self.req_id_seq
-        req = ReqMsg(cl_id=self.cl_id, req_id=req_id, r_key=r_key, r_version=r_version, w_key=w_key, w_value=w_value, null_val=null_val)
+        req = ReqMsg(cl_id=self.cl_id, req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
         return req
 
     def sendreq(self, req):

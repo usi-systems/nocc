@@ -16,25 +16,22 @@ cl = StoreClient(store_addr=(args.host, args.port))
 resp = cl.req(w_key=1, w_value='a')
 assert(resp.status == STATUS_OK)
 assert(resp.from_switch == 0) # should not have originated at the switch, but store
+assert(resp.key == 1)
+assert(resp.value.rstrip('\0') == 'a')
 
 # Switch should return cached key:
 resp = cl.req(r_key=1)
 assert(resp.status == STATUS_OK)
 assert(resp.from_switch == 1) # should be cached on switch
-assert(resp.version > 0)
-current_version = resp.version
+assert(resp.key == 1)
+assert(resp.value.rstrip('\0') == 'a')
 
 # Switch should reject bad RW transaction
-resp = cl.req(r_key=1, r_version=0, w_key=1, w_value='x')
+resp = cl.req(r_key=1, r_value='somethingelse', w_key=1, w_value='x')
 assert(resp.status == STATUS_REJECT)
 assert(resp.from_switch == 1) # switch should do the reject
 assert(resp.key == 1) # and tell us current key state
-assert(resp.version == current_version)
 assert(resp.value.rstrip('\0') == 'a')
 
-# Switch should not return missing key
-resp = cl.req(w_key=1, null_val=1) # First, delete it
-assert(resp.status == STATUS_OK)
-resp = cl.req(r_key=1)             # Then, try fetching it
-assert(resp.status == STATUS_NOTFOUND)
-assert(resp.from_switch == 0) # should not be cached on switch
+# cleanup
+resp = cl.req(w_key=1, w_value='')
