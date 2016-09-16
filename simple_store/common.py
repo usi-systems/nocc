@@ -10,10 +10,11 @@ TYPE_RES = 1
 
 STATUS_OK = 0
 STATUS_ABORT = 1
+STATUS_OPTIMISTIC_ABORT = 2
 
 VALUE_SIZE = 100
 
-status_to_string = ['STATUS_OK', 'STATUS_ABORT']
+status_to_string = ['STATUS_OK', 'STATUS_ABORT', 'STATUS_OPTIMISTIC_ABORT']
 
 OP_R =  1
 OP_W =  2
@@ -176,7 +177,12 @@ class StoreClient:
 
     def req(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
-        return self.sendreq(req)
+        self.sendreq(req)
+        return self.recvresp()
+
+    def reqAsync(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
+        req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
+        self.sendreq(req)
 
     def buildreq(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         if req_id is None:
@@ -189,6 +195,8 @@ class StoreClient:
         req_data = req.pack()
         self.sock.sendto(req_data, self.store_addr)
         self._log("sent", req=req)
+
+    def recvresp(self):
         data, fromaddr = self.sock.recvfrom(RESPMSG_SIZE)
         assert(fromaddr == self.store_addr)
         res = RespMsg(binstr=data)

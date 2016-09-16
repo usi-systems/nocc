@@ -12,16 +12,15 @@ from common import *
 class SwitchCache:
     def __init__(self):
         self.values = {}
+        self.optimistic_values = {}
 
+    # only a response from the store should update the cache
     def insert(self, key=None, value=None):
+        if key in self.optimistic_values: del self.optimistic_values[key]
         self.values[key] = value
 
-    def hit(self, key):
-        return key in self.values.keys()
-
-    def sameValue(self, key, value):
-        assert(self.hit(key))
-        return value == self.values[key]
+    def optimisticInsert(self, key=None, value=None):
+        self.optimistic_values[key] = value
 
 class ClientPort(asyncore.dispatcher):
 
@@ -118,18 +117,27 @@ class SoftwareSwitch:
                 continue
 
             if req.r_key != 0 and req.w_key != 0: # RW operation
-                if self.cache.hit(req.r_key) and not self.cache.sameValue(req.r_key, req.r_value):
-                    # Do an early abort:
+                if self.mode == 'optimistic_abort' and req.r_key in self.cache.optimistic_values:
+                    if req.r_value != self.cache.optimistic_values[req.r_key]:
+                        abort_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OPTIMISTIC_ABORT, from_switch=1,
+                                key=req.r_key, value=self.cache.optimistic_values[req.r_key])
+                        self._sendToClient(abort_msg)
+                        continue
+                elif req.r_key in self.cache.values and not req.r_value == self.cache.values[req.r_key]:
                     abort_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_ABORT, from_switch=1,
                             key=req.r_key, value=self.cache.values[req.r_key])
                     self._sendToClient(abort_msg)
                     continue
             elif req.r_key != 0:                  # R operation
-                if self.cache.hit(req.r_key):
+                if req.r_key in self.cache.values:
                     resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OK, from_switch=1,
                             key=req.r_key, value=self.cache.values[req.r_key])
                     self._sendToClient(resp)
                     continue
+
+            if self.mode == 'optimistic_abort':
+                if req.w_key != 0:
+                    self.cache.optimisticInsert(key=req.w_key, value=req.w_value)
 
             # Otherwise, just forward packet:
             self._sendToStore(req)
