@@ -1,5 +1,6 @@
 import json
 import argparse
+import multiprocessing
 import sys
 from os import path, listdir
 sys.path.append('../simple_store')
@@ -83,13 +84,20 @@ def getExperimentStats(experiment_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("dir", type=str, help="experiment directory")
+    parser.add_argument("dir", type=str, help="experiment directory", nargs='*')
+    parser.add_argument("--json", "-j", action="store_true", help="output as JSON")
     parser.add_argument("--header", "-H", action="store_true", help="print header")
     args = parser.parse_args()
 
-    summary = getExperimentStats(args.dir)
-    #print json.dumps(summary, indent=1, sort_keys=True)
-    keys = sorted(summary.keys())
-    if args.header:
-        print '\t'.join(keys)
-    print '\t'.join([str(summary[k]) for k in keys])
+    n_cpu = multiprocessing.cpu_count()
+    n_job = n_cpu if n_cpu == 1 else n_cpu - 1
+    p = multiprocessing.Pool(n_job)
+    summaries = p.map(getExperimentStats, args.dir)
+
+    if args.json:
+        print json.dumps(summaries, indent=1, sort_keys=True)
+    else:
+        keys = sorted(summaries[0].keys())
+        if args.header:
+            print '\t'.join(keys)
+        print '\n'.join(['\t'.join([str(s[k]) for k in keys]) for s in summaries])
