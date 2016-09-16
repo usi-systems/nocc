@@ -3,6 +3,7 @@ import argparse
 import socket
 import time
 import signal
+import errno
 from common import *
 
 parser = argparse.ArgumentParser()
@@ -21,11 +22,17 @@ if args.log:
     log = GotthardLogger(args.log)
     def handler(signum, frame):
         log.close()
+        sock.close()
     signal.signal(signal.SIGINT, handler)
 
 
 while True:
-    data, addr = sock.recvfrom(REQMSG_SIZE)
+    try:
+        data, addr = sock.recvfrom(REQMSG_SIZE)
+    except socket.error as (code, msg):
+        if code != errno.EINTR:
+            raise
+        break
     req = ReqMsg(binstr=data)
     if log: log.log("received", req=req)
     op = req.op()

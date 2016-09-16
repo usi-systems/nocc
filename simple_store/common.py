@@ -11,13 +11,15 @@ TYPE_RES = 1
 STATUS_OK = 0
 STATUS_ABORT = 1
 
+VALUE_SIZE = 100
+
 status_to_string = ['STATUS_OK', 'STATUS_ABORT']
 
 OP_R =  1
 OP_W =  2
 OP_RW = 3
 
-reqmsg_fmt = '!B I i i i 100s 100s'
+reqmsg_fmt = '!B I i i i %ds %ds' % (VALUE_SIZE, VALUE_SIZE)
 REQMSG_SIZE = struct.Struct(reqmsg_fmt).size
 
 class BaseMsg:
@@ -75,7 +77,7 @@ class ReqMsg(BaseMsg):
             yield f, getattr(self, f)
 
 
-respmsg_fmt = '!B I i B i 100s'
+respmsg_fmt = '!B I i B i %ds' % (VALUE_SIZE)
 RESPMSG_SIZE = struct.Struct(respmsg_fmt).size
 
 class RespMsg(BaseMsg):
