@@ -79,8 +79,9 @@ class StorePort(asyncore.dispatcher):
 
 class SoftwareSwitch:
 
-    def __init__(self, store_addr=None, bind_addr=None,
+    def __init__(self, store_addr=None, bind_addr=None, mode='early_reject',
             store_threads=4, client_threads=4, store_delay=None, client_delay=None):
+        self.mode = mode
         self.store_delay = store_delay
         self.client_delay = client_delay
 
@@ -106,6 +107,14 @@ class SoftwareSwitch:
         for _ in xrange(len(self.client_handlers)): self.req_queue.put(False)
         for _ in xrange(len(self.store_handlers)): self.res_queue.put(False)
 
+    def _sendToStore(self, req):
+        if self.store_delay: sleep(self.store_delay)
+        self.store_port.sendReq(req)
+
+    def _sendToClient(self, res):
+        if self.client_delay: sleep(self.client_delay)
+        self.client_port.sendRes(res)
+
     def _clientHandler(self):
         while True:
             req = self.req_queue.get()
@@ -113,23 +122,26 @@ class SoftwareSwitch:
 
             if self.client_delay: sleep(self.client_delay)
 
+            if self.mode == 'forward':
+                self._sendToStore(req)
+                continue
+
             if req.r_key != 0 and req.w_key != 0: # RW operation
                 if self.cache.hit(req.r_key) and not self.cache.sameVersion(req.r_key, req.r_version):
                     # Do an early reject:
                     reject_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_REJECT, from_switch=1,
                             key=req.r_key, value=self.cache.values[req.r_key], version=self.cache.versions[req.r_key])
-                    self.client_port.sendRes(reject_msg)
+                    self._sendToClient(reject_msg)
                     continue
             elif req.r_key != 0:                  # R operation
                 if self.cache.hit(req.r_key):
                     resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OK, from_switch=1,
                             key=req.r_key, value=self.cache.values[req.r_key], version=self.cache.versions[req.r_key])
-                    self.client_port.sendRes(resp)
+                    self._sendToClient(resp)
                     continue
 
             # Otherwise, just forward packet:
-            if self.store_delay: sleep(self.store_delay)
-            self.store_port.sendReq(req)
+            self._sendToStore(req)
 
     def _storeHandler(self):
         while True:
@@ -138,12 +150,15 @@ class SoftwareSwitch:
 
             if self.store_delay: sleep(self.store_delay)
 
+            if self.mode == 'forward':
+                self._sendToClient(res)
+                continue
+
             # Update our cache, if necessary:
             if res.status == STATUS_OK and res.key != 0:
                 self.cache.insert(key=res.key, version=res.version, value=res.value)
 
-            if self.client_delay: sleep(self.client_delay)
-            self.client_port.sendRes(res)
+            self._sendToClient(res)
 
 
 if __name__ == '__main__':
@@ -153,6 +168,7 @@ if __name__ == '__main__':
                         type=float, required=False, default=None)
     parser.add_argument("--client-delta", "-d", help="delay (s)  sending/receiving with client",
                         type=float, required=False, default=None)
+    parser.add_argument("--mode", "-m", choices=['forward', 'early_reject', 'optimistic_reject'], type=str, default="cache")
     parser.add_argument("store_host", type=str, help="store hostname")
     parser.add_argument("store_port", type=int, help="store port")
     args = parser.parse_args()
@@ -161,7 +177,8 @@ if __name__ == '__main__':
     sw = SoftwareSwitch(store_addr=store_addr,
                         bind_addr=('', args.port),
                         store_delay=args.server_delta,
-                        client_delay=args.client_delta)
+                        client_delay=args.client_delta,
+                        mode=args.mode)
 
     def signal_handler(signal, frame):
         sw.stop()
