@@ -70,7 +70,7 @@ class StorePort(asyncore.dispatcher):
 
 class SoftwareSwitch:
 
-    def __init__(self, store_addr=None, bind_addr=None, mode='early_reject',
+    def __init__(self, store_addr=None, bind_addr=None, mode='early_abort',
             store_threads=4, client_threads=4, store_delay=None, client_delay=None):
         self.mode = mode
         self.store_delay = store_delay
@@ -119,10 +119,10 @@ class SoftwareSwitch:
 
             if req.r_key != 0 and req.w_key != 0: # RW operation
                 if self.cache.hit(req.r_key) and not self.cache.sameValue(req.r_key, req.r_value):
-                    # Do an early reject:
-                    reject_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_REJECT, from_switch=1,
+                    # Do an early abort:
+                    abort_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_ABORT, from_switch=1,
                             key=req.r_key, value=self.cache.values[req.r_key])
-                    self._sendToClient(reject_msg)
+                    self._sendToClient(abort_msg)
                     continue
             elif req.r_key != 0:                  # R operation
                 if self.cache.hit(req.r_key):
@@ -159,7 +159,7 @@ if __name__ == '__main__':
                         type=float, required=False, default=None)
     parser.add_argument("--client-delta", "-d", help="delay (s)  sending/receiving with client",
                         type=float, required=False, default=None)
-    parser.add_argument("--mode", "-m", choices=['forward', 'early_reject', 'optimistic_reject'], type=str, default="cache")
+    parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="cache")
     parser.add_argument("store_host", type=str, help="store hostname")
     parser.add_argument("store_port", type=int, help="store port")
     args = parser.parse_args()

@@ -135,7 +135,7 @@ class Store:
     def readwrite(self, r_key=None, r_value=None, w_key=None, w_value=None):
         assert(r_key != 0)
         if r_key in self.values.keys() and self.values[r_key] != r_value:
-            return (STATUS_REJECT, r_key, self.values[r_key])
+            return (STATUS_ABORT, r_key, self.values[r_key])
         return self.write(key=w_key, value=w_value)
 
     def __str__(self):
@@ -169,6 +169,9 @@ class StoreClient:
     def _log(self, *args, **kwargs):
         if self.log: self.log.log(*args, **kwargs)
 
+    def __exit__(self):
+        if self.log: self.log.exit()
+
     def req(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
         return self.sendreq(req)
@@ -201,8 +204,9 @@ class GotthardLogger:
             while not self.closed.wait(1):
                 if time.time() - self.last_log > 5: self.log("heartbeat")
                 self.logfile.flush()
-        threading.Thread(target=heartbeat).start()
-
+        t = threading.Thread(target=heartbeat)
+        t.daemon = True
+        t.start()
 
     def log(self, event, req=None, res=None):
         self.last_log = time.time()

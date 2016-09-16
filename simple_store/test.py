@@ -3,11 +3,12 @@ import argparse
 from common import *
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
 parser.add_argument("host", type=str, help="server hostname")
 parser.add_argument("port", type=int, help="server port")
 args = parser.parse_args()
 
-cl = StoreClient(store_addr=(args.host, args.port))
+cl = StoreClient(store_addr=(args.host, args.port), log_filename=args.log)
 
 # Check that we can write multilpe value
 for i in range(3):
@@ -43,7 +44,7 @@ assert(resp2.value[0] == 'x')
 
 # Try a bad r/w
 resp = cl.req(r_key=1, r_value='notthesame', w_key=1, w_value='x')
-assert(resp.status == STATUS_REJECT)
+assert(resp.status == STATUS_ABORT)
 assert(resp.updated == 0)
 assert(resp.type == TYPE_RES)
 

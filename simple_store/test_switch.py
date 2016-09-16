@@ -26,10 +26,10 @@ assert(resp.from_switch == 1) # should be cached on switch
 assert(resp.key == 1)
 assert(resp.value.rstrip('\0') == 'a')
 
-# Switch should reject bad RW transaction
+# Switch should abort bad RW transaction
 resp = cl.req(r_key=1, r_value='somethingelse', w_key=1, w_value='x')
-assert(resp.status == STATUS_REJECT)
-assert(resp.from_switch == 1) # switch should do the reject
+assert(resp.status == STATUS_ABORT)
+assert(resp.from_switch == 1) # switch should do the abort
 assert(resp.key == 1) # and tell us current key state
 assert(resp.value.rstrip('\0') == 'a')
 
