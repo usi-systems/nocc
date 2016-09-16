@@ -226,6 +226,7 @@ def main():
         sleep(0.2)
         if server_proc.returncode is None:
             server_proc.kill()
+        print server_proc.communicate()
 
     net.stop()
 

@@ -8,27 +8,24 @@ function gotthard_proto.dissector(buffer,pinfo,tree)
     if buffer(0,1):bitfield(0,1) == 0 then
         pinfo.cols.protocol = "Gotthard Request"
         local subtree = tree:add(gotthard_proto,buffer(),"Gotthard Request")
-        subtree:add(buffer(0,1),"null_val: " .. buffer(0,1):bitfield(1,1))
-        subtree:add(buffer(0,1),"updated: " .. buffer(0,1):bitfield(2,1))
-        subtree:add(buffer(0,1),"from_switch: " .. buffer(0,1):bitfield(3,1))
+        subtree:add(buffer(0,1),"updated: " .. buffer(0,1):bitfield(1,1))
+        subtree:add(buffer(0,1),"from_switch: " .. buffer(0,1):bitfield(2,1))
         subtree:add(buffer(1,4),"cl_id: " .. buffer(1,4):uint())
         subtree:add(buffer(5,4),"req_id: " .. buffer(5,4):uint())
         subtree:add(buffer(9,4),"r_key: " .. buffer(9,4):uint())
-        subtree:add(buffer(13,4),"r_version: " .. buffer(13,4):uint())
-        subtree:add(buffer(17,4),"w_key: " .. buffer(17,4):uint())
-        subtree:add(buffer(21,100),"value: " .. buffer(21,100))
+        subtree:add(buffer(13,4),"w_key: " .. buffer(13,4):uint())
+        subtree:add(buffer(17,100),"r_value: " .. buffer(17,100))
+        subtree:add(buffer(117,100),"w_value: " .. buffer(117,100))
     else
         pinfo.cols.protocol = "Gotthard Response"
         local subtree = tree:add(gotthard_proto,buffer(),"Gotthard Response")
-        subtree:add(buffer(0,1),"null_val: " .. buffer(0,1):bitfield(1,1))
-        subtree:add(buffer(0,1),"updated: " .. buffer(0,1):bitfield(2,1))
-        subtree:add(buffer(0,1),"from_switch: " .. buffer(0,1):bitfield(3,1))
+        subtree:add(buffer(0,1),"updated: " .. buffer(0,1):bitfield(1,1))
+        subtree:add(buffer(0,1),"from_switch: " .. buffer(0,1):bitfield(2,1))
         subtree:add(buffer(1,4),"cl_id: " .. buffer(1,4):uint())
         subtree:add(buffer(5,4),"req_id: " .. buffer(5,4):uint())
         subtree:add(buffer(9,1),"status: " .. buffer(9,1):uint())
         subtree:add(buffer(10,4),"key: " .. buffer(10,4):uint())
-        subtree:add(buffer(14,4),"version: " .. buffer(14,4):uint())
-        subtree:add(buffer(18,100),"value: " .. buffer(18,100))
+        subtree:add(buffer(14,100),"value: " .. buffer(14,100))
     end
 end
 -- load the udp.port table
