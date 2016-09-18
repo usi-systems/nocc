@@ -221,10 +221,10 @@ header_type gotthard_req_metadata_t {
 }
 metadata gotthard_req_metadata_t gotthard_req_metadata;
 
-action do_gotthard_cache_lookup () {
+action do_gotthard_cache_lookup (in bit<1> optimistic_abort_enabled) {
     gotthard_req_metadata.is_key_cached = is_key_cached_register[gotthard_req.r_key];
     gotthard_req_metadata.is_value_match = value_register[gotthard_req.r_key] == gotthard_req.r_value ? (bit<1>) 1 : 0;
-    gotthard_req_metadata.is_pending_write = pending_write_register[gotthard_req.r_key];
+    gotthard_req_metadata.is_pending_write = pending_write_register[gotthard_req.r_key] & optimistic_abort_enabled;
     gotthard_req_metadata.is_pending_value_match = pending_value_register[gotthard_req.r_key] == gotthard_req.r_value ? (bit<1>) 1 : 0;
 }
 
@@ -264,7 +264,7 @@ action do_gotthard_abort () {
     gotthard_res.req_id = gotthard_req.req_id;
     gotthard_res.status = GOTTHARD_STATUS_ABORT;
     gotthard_res.key = gotthard_req.r_key;
-    gotthard_res.value = (bit<800>)value_register[gotthard_req.r_key];
+    gotthard_res.value = value_register[gotthard_req.r_key];
 }
 
 action do_gotthard_hit () {

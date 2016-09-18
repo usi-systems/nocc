@@ -44,11 +44,10 @@ parser.add_argument('--thrift-port', help='Thrift server port for table updates'
                     type=int, action="store", default=9090)
 parser.add_argument('--num-clients', help='Number of hosts to connect to switch',
                     type=int, action="store", default=2)
-parser.add_argument('--mode', choices=['l2', 'l3'], type=str, default='l3')
+parser.add_argument('--lmode', choices=['l2', 'l3'], type=str, default='l3')
 parser.add_argument('--cli', help="start the mininet cli",
                     action="store_true", required=False, default=False)
-parser.add_argument('--disable-cache', help="disable the switch cach",
-                    action="store_true", required=False, default=False)
+parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
 parser.add_argument('--json', help='Path to JSON config file',
                     type=str, action="store", required=True)
 parser.add_argument('--pcap-dump', help='Dump packets on interfaces to pcap files',
@@ -97,7 +96,7 @@ def main():
         conf = dict(server=dict(cmd=args.server_cmd),
                     clients=[dict(cmd=args.client_cmd) for _ in xrange(args.num_clients)])
 
-    if not 'switch' in conf: conf['switch'] = dict(disable_cache=args.disable_cache)
+    if not 'switch' in conf: conf['switch'] = dict(mode=args.mode)
     if not 'sequential_clients' in conf: conf['sequential_clients'] = False
 
     conf['dir'] = os.path.dirname(os.path.abspath(args.config if args.config else './'))
@@ -160,7 +159,7 @@ def main():
 
     for n, host in enumerate(hosts):
         h = net.get(host['name'])
-        if args.mode == "l2":
+        if args.lmode == "l2":
             h.setDefaultRoute("dev eth0")
         else:
             h.setARP(host['sw_addr'], host['sw_mac'])
@@ -176,13 +175,21 @@ def main():
     with open(args.entries, 'r') as f:
         p4_t_entries = f.read()
     if p4_t_entries[-1] != "\n": p4_t_entries += "\n"
+
+    if conf['switch']['mode'] == 'forward':
+        p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
+        p4_t_entries += "table_set_default gotthard_pending_write_table _no_op\n"
+        p4_t_entries += "table_set_default gotthard_res_table _no_op\n"
+    elif conf['switch']['mode'] == 'early_abort':
+        p4_t_entries += "table_set_default gotthard_cache_table do_gotthard_cache_lookup 0\n"
+    elif conf['switch']['mode'] == 'optimistic_abort':
+        p4_t_entries += "table_set_default gotthard_cache_table do_gotthard_cache_lookup 1\n"
+
     for n, host in enumerate(hosts):
         p4_t_entries += "table_add send_frame rewrite_mac %d => %s\n" % (n+1, host['mac'])
         p4_t_entries += "table_add forward set_dmac %s => %s\n" % (host['ip'], host['mac'])
         p4_t_entries += "table_add ipv4_lpm set_nhop %s/32 => %s %d\n" % (host['ip'], host['ip'], n+1)
-    if conf['switch']['disable_cache']:
-        p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
-        p4_t_entries += "table_set_default gotthard_res_table _no_op\n"
+
     print p4_t_entries
     p = subprocess.Popen(['./add_entries_stdin.sh', args.json], stdin=subprocess.PIPE)
     p.communicate(input=p4_t_entries)
