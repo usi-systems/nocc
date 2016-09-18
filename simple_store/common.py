@@ -14,7 +14,7 @@ STATUS_OPTIMISTIC_ABORT = 2
 
 VALUE_SIZE = 100
 
-status_to_string = ['STATUS_OK', 'STATUS_ABORT', 'STATUS_OPTIMISTIC_ABORT']
+status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT']
 
 OP_R =  1
 OP_W =  2

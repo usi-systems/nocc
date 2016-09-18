@@ -12,8 +12,9 @@ def parseLog(func, filename):
             event = json.loads(line)
             func(event)
 
-default_st = dict(abort_count=0, sent_count=0, recv_count=0,
-            start=None, end=None)
+default_st = dict(abort_count=0, optimistic_abort_count=0,
+                    sent_count=0, recv_count=0,
+                    start=None, end=None)
 
 def getClientStats(filename):
     st = default_st.copy()
@@ -24,7 +25,8 @@ def getClientStats(filename):
         elif e['event'] == 'received':
             st['end'] = e['time']
             st['recv_count'] += 1
-            if e['res']['status'] == 'STATUS_REJECT': st['abort_count'] += 1
+            if e['res']['status'] == 'OPTIMISTIC_ABORT': st['optimistic_abort_count'] += 1
+            if e['res']['status'] == 'ABORT': st['abort_count'] += 1
     parseLog(clientHook, filename)
     return st
 
@@ -34,7 +36,7 @@ def getServerStats(filename):
         if e['event'] == 'sent':
             st['sent_count'] += 1
             st['end'] = e['time']
-            if e['res']['status'] == 'STATUS_REJECT': st['abort_count'] += 1
+            if e['res']['status'] == 'ABORT': st['abort_count'] += 1
         elif e['event'] == 'received':
             if st['start'] is None: st['start'] = e['time']
             st['recv_count'] += 1
@@ -60,14 +62,14 @@ def getExperimentStats(experiment_dir):
             in zip(client_names, client_log_filenames)]
 
     summary = dict()
-    summary['total_aborts'] = sum([st['abort_count'] for st in cl_stats])
+    summary['total_aborts'] = sum([st['abort_count'] for st in cl_stats]) + sum([st['optimistic_abort_count'] for st in cl_stats])
     summary['total_sent'] = sum([st['sent_count'] for st in cl_stats])
     summary['total_recv'] = sum([st['recv_count'] for st in cl_stats])
     summary['srv_sent'] = srv_stats['sent_count']
     summary['srv_recv'] = srv_stats['recv_count']
     summary['srv_abort'] = srv_stats['abort_count']
 
-    summary['pct_shortcut_abort'] = float(summary['total_aborts'] - summary['srv_abort']) / summary['total_aborts']
+    summary['pct_shortcut_abort'] = 0 if summary['total_aborts'] == 0 else float(summary['total_aborts'] - summary['srv_abort']) / summary['total_aborts']
 
     summary['elapsed_time'] = max([st['end'] for st in cl_stats]) - min([st['start'] for st in cl_stats])
 
@@ -76,7 +78,7 @@ def getExperimentStats(experiment_dir):
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
-                disabled=conf['switch']['disable_cache'],
+                mode=conf['switch']['mode'],
                 req_count=conf['req_count'])
 
 
