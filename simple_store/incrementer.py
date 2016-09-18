@@ -15,18 +15,19 @@ class IncClient(Thread, StoreClient):
         self.think_var = think_var
 
     def run(self):
-        # Initialize key/value if it's not already there
-        resp = self.req(r_key=1, r_value='', w_key=1, w_value=str(0))
-        if self.think and self.think_var: think_sigma = self.think * self.think_var
-        for i in range(self.count):
-            while True:
-                cached_value = int(resp.value.rstrip('\0'))
-                resp = self.req(r_key=1, r_value=str(cached_value), w_key=1, w_value=str(cached_value+1))
-                if resp.status == STATUS_OK: break
-            if self.think:
-                sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
+        with self:
+            # Initialize key/value if it's not already there
+            resp = self.req(r_key=1, r_value='', w_key=1, w_value=str(0))
+            if self.think and self.think_var: think_sigma = self.think * self.think_var
+            for i in range(self.count):
+                while True:
+                    cached_value = int(resp.value.rstrip('\0'))
+                    resp = self.req(r_key=1, r_value=str(cached_value), w_key=1, w_value=str(cached_value+1))
+                    if resp.status == STATUS_OK: break
+                if self.think:
+                    sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
 
-        print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp.value.rstrip('\0')
+            print "client", self.cl_name, "(%11d)"%self.cl_id, "incremented it to", resp.value.rstrip('\0')
 
 
 if __name__ == '__main__':
