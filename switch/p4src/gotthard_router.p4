@@ -208,10 +208,10 @@ table gotthard_res_table {
 
 header_type gotthard_req_metadata_t {
     fields {
-        bit<1> is_cache_enabled;
-        bit<1> is_same_value;
-        bit<1> is_cache_hit;
+        bit<1> is_key_cached;
+        bit<1> is_value_match;
         bit<1> is_pending_write;
+        bit<1> is_pending_value_match;
         bit<1> is_aborted_by_switch;
 
         // tmp variables for doing swaps:
@@ -222,10 +222,10 @@ header_type gotthard_req_metadata_t {
 metadata gotthard_req_metadata_t gotthard_req_metadata;
 
 action do_gotthard_cache_lookup () {
-    gotthard_req_metadata.is_cache_enabled = (bit<1>)1;
-    gotthard_req_metadata.is_cache_hit = is_key_cached_register[gotthard_req.r_key];
-    gotthard_req_metadata.is_same_value = value_register[gotthard_req.r_key] == gotthard_req.r_value ? (bit<1>) 1 : 0;
+    gotthard_req_metadata.is_key_cached = is_key_cached_register[gotthard_req.r_key];
+    gotthard_req_metadata.is_value_match = value_register[gotthard_req.r_key] == gotthard_req.r_value ? (bit<1>) 1 : 0;
     gotthard_req_metadata.is_pending_write = pending_write_register[gotthard_req.r_key];
+    gotthard_req_metadata.is_pending_value_match = pending_value_register[gotthard_req.r_key] == gotthard_req.r_value ? (bit<1>) 1 : 0;
 }
 
 table gotthard_cache_table {
@@ -285,6 +285,7 @@ action do_gotthard_hit () {
 action do_gotthard_optimistic_abort () {
     do_gotthard_abort();
     gotthard_res.status = GOTTHARD_STATUS_OPTIMISTIC_ABORT;
+    gotthard_res.value = pending_value_register[gotthard_req.r_key];
 }
 
 
@@ -392,17 +393,19 @@ control ingress {
         else if (valid(gotthard_req)) {
             if (gotthard_req.r_key != 0) {
                 apply(gotthard_cache_table); // First, look up the key in the cache
-                if (gotthard_req_metadata.is_cache_enabled == 1) {
+                if (gotthard_req_metadata.is_key_cached == 1) { // cache hit
+                    // RW operation and another pending W
+                    if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_pending_write == 1) {
+                        if (gotthard_req_metadata.is_pending_value_match == 0) {
+                            apply(gotthard_optimistic_abort_table);
+                        }
+                    }
                     // RW operation and a bad r_value
-                    if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_same_value == 0) {
+                    else if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_value_match == 0) {
                         apply(gotthard_abort_table);
                     }
-                    // RW operation and another pending W
-                    else if (gotthard_req.w_key != 0 and gotthard_req_metadata.is_pending_write == 1) {
-                        apply(gotthard_optimistic_abort_table);
-                    }
-                    // R operation and there's a cache hit
-                    else if (gotthard_req.w_key == 0 and gotthard_req_metadata.is_cache_hit == 1) {
+                    // R operation; just return cached value
+                    else if (gotthard_req.w_key == 0) {
                         apply(gotthard_hit_table);
                     }
                 }
