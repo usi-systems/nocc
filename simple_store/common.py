@@ -149,19 +149,29 @@ class Store:
 
 class StoreClient:
 
-    def __init__(self, store_addr=None, logger=None, log_filename=None):
+    def __init__(self, store_addr=None, logger=None, log_filename=None, cl_id=None):
+        self.store_addr = store_addr
+        self.recv_queue = {}
+        self.req_id_seq = 0
+        self.closed = True
+        self.cl_id = cl_id
+        self.log = logger
+        self.log_filename = log_filename
+
+    def open(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(10.0)
         self.sock.bind(('', 0))
         self.cl_addr = self.sock.getsockname()
         self.cl_name = ':'.join(map(str, self.cl_addr))
-        self.cl_id = abs(hash(self.cl_name)) % 2**32
-        self.store_addr = store_addr
-        self.req_id_seq = 0
+        if not self.cl_id:
+            self.cl_id = abs(hash(self.cl_name)) % 2**32
+        if self.log_filename: self.log = GotthardLogger(self.log_filename)
         self.closed = False
-        self.log = None
-        if logger: self.log = logger
-        elif log_filename: self.log = GotthardLogger(log_filename)
+        return self
+
+    def __enter__(self):
+        if self.closed: return self.open()
 
     def close(self):
         if self.closed: return
@@ -172,8 +182,8 @@ class StoreClient:
     def _log(self, *args, **kwargs):
         if self.log: self.log.log(*args, **kwargs)
 
-    def __exit__(self):
-        if self.log: self.log.exit()
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def req(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
@@ -183,6 +193,7 @@ class StoreClient:
     def reqAsync(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
         self.sendreq(req)
+        return req.req_id
 
     def buildreq(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
         if req_id is None:
@@ -196,12 +207,21 @@ class StoreClient:
         self.sock.sendto(req_data, self.store_addr)
         self._log("sent", req=req)
 
-    def recvresp(self):
-        data, fromaddr = self.sock.recvfrom(RESPMSG_SIZE)
-        assert(fromaddr == self.store_addr)
-        res = RespMsg(binstr=data)
-        self._log("received", res=res)
-        return res
+    def recvresp(self, req_id=None):
+        if not req_id is None and req_id in self.recv_queue:
+            res = self.recv_queue[req_id]
+            del self.recv_queue[req_id]
+            return res
+        while True:
+            data, fromaddr = self.sock.recvfrom(RESPMSG_SIZE)
+            assert(fromaddr == self.store_addr)
+            res = RespMsg(binstr=data)
+            self._log("received", res=res)
+            if not req_id is None:
+                if req_id != res.req_id:
+                    self.recv_queue[res.req_id] = res
+                    continue
+            return res
 
 
 class GotthardLogger:
@@ -215,7 +235,7 @@ class GotthardLogger:
                 if time.time() - self.last_log > 5: self.log("heartbeat")
                 self.logfile.flush()
         t = threading.Thread(target=heartbeat)
-        t.daemon = True
+        t.daemon = False
         t.start()
 
     def log(self, event, req=None, res=None):
@@ -231,6 +251,6 @@ class GotthardLogger:
         self.logfile.flush()
         self.logfile.close()
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, traceback):
         if not self.closed.isSet():
             self.close()

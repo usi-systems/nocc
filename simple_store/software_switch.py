@@ -167,7 +167,7 @@ if __name__ == '__main__':
                         type=float, required=False, default=None)
     parser.add_argument("--client-delta", "-d", help="delay (s)  sending/receiving with client",
                         type=float, required=False, default=None)
-    parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="cache")
+    parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
     parser.add_argument("store_host", type=str, help="store hostname")
     parser.add_argument("store_port", type=int, help="store port")
     args = parser.parse_args()
