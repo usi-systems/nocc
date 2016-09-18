@@ -11,13 +11,16 @@ from time import sleep
 from common import *
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
 parser.add_argument("host", type=str, help="server hostname")
 parser.add_argument("port", type=int, help="server port")
 args = parser.parse_args()
 
-cl1 = StoreClient(store_addr=(args.host, args.port))
+logger = GotthardLogger(args.log) if args.log else None
+
+cl1 = StoreClient(store_addr=(args.host, args.port), logger=logger)
 cl1.cl_id = 1
-cl2 = StoreClient(store_addr=(args.host, args.port))
+cl2 = StoreClient(store_addr=(args.host, args.port), logger=logger)
 cl2.cl_id = 2
 
 # Populate the store with one key:
@@ -33,6 +36,8 @@ resp1, resp2 = cl1.recvresp(), cl2.recvresp()
 
 assert(resp1.status == STATUS_OK) # T1 should have succeeded
 assert(resp2.status == STATUS_OPTIMISTIC_ABORT) # T2 not
+assert(resp1.from_switch == 0) # store should have commited it
+assert(resp2.from_switch == 1) # should be aborted by switch
 assert(resp2.key == 1)
 assert(resp2.value.rstrip('\0') == 'b')
 
@@ -40,6 +45,7 @@ assert(resp2.value.rstrip('\0') == 'b')
 cl1.reqAsync(r_key=1, r_value='b', w_key=1, w_value='c') # T1
 t2resp1 = cl2.req(r_key=1, r_value='b', w_key=1, w_value='c') # T2
 assert(t2resp1.status == STATUS_OPTIMISTIC_ABORT)
+assert(t2resp1.from_switch == 1) # should be aborted by switch
 
 t2resp2 = cl2.req(r_key=1, r_value=t2resp1.value, w_key=1, w_value='d') # T2'
 assert(t2resp2.status == STATUS_OK)
