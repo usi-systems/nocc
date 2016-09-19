@@ -48,7 +48,8 @@ def plot_lines(data, xlabel=None, ylabel=None, title=None, label_order=None):
     ax.grid()
     ax.margins(x=0.1)
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(loc='upper left', handles=handles, labels=labels)
+    #ax.legend(loc='upper left', handles=handles, labels=labels)
+    ax.legend(loc='best', fancybox=True, framealpha=0.5, handles=handles, labels=labels)
     return fig
 
 

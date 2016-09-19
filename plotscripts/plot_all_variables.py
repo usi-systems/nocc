@@ -55,16 +55,17 @@ def plot_variables(fh=None, filename=None, out_dir="./",
 
     labels = _get_labels(cur, label_field)
 
-    for ind_var in independent_vars[:1]:                                # Choose an independent variable
+    for ind_var in independent_vars:                                    # Choose an independent variable
         other_ind_vars = [v for v in independent_vars if v != ind_var]  # Find all the other independent variables
         combinations = _get_ind_var_combinations(cur, other_ind_vars)   # Find the combinations of the other ind. vars.
         for dep_var in dependent_vars:
-            for fixed_ind_vars in combinations:                            # Fix the other ind. vars. and get the values
+            for fixed_ind_vars in combinations:                         # Fix the other ind. vars. and get the values
                 data = _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars)
                 title = "%s vs. %s" % (ind_var, dep_var)
                 name = "%s_vs_%s_%s" % (ind_var, dep_var,
                         '_'.join(["%s%s"%(v,k) for k,v in fixed_ind_vars.iteritems()]))
-                fig = plot_lines(data, xlabel=ind_var, ylabel=dep_var, title=title, label_order=label_order)
+                fig = plot_lines(data, xlabel=ind_var, ylabel=dep_var,
+                        title=title, label_order=label_order)
                 fig.savefig(os.path.join(out_dir, name + '.png'))
                 plt.close(fig)
 

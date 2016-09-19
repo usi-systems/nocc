@@ -73,8 +73,8 @@ def getExperimentStats(experiment_dir):
 
     summary['elapsed_time'] = max([st['end'] for st in cl_stats]) - min([st['start'] for st in cl_stats])
 
-    experiment_params = dict(d=conf['clients'][0]['delay'],
-                D=conf['server']['delay'],
+    experiment_params = dict(client_d=conf['clients'][0]['delay'],
+                store_D=conf['server']['delay'],
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
