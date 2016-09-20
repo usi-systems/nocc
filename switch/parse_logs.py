@@ -80,6 +80,7 @@ def getExperimentStats(experiment_dir):
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
                 mode=conf['switch']['mode'],
                 req_count=conf['req_count'])
+    experiment_params['delta_ratio'] = float(experiment_params['store_D']) / experiment_params['client_d']
 
 
     return dict(summary, **experiment_params)

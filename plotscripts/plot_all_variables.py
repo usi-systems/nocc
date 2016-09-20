@@ -7,6 +7,7 @@ havedisplay = "DISPLAY" in os.environ
 if not havedisplay:
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
 from plot_lines import plot_lines
 from tsv_to_db import tsvToDb
 
@@ -35,18 +36,27 @@ def _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars):
     sql ="SELECT %s,%s,%s FROM t WHERE %s" % (label_field, ind_var, dep_var,
         ' AND '.join(["%s=%s"%(k,v) for k,v in fixed_ind_vars.iteritems()]))
     cur.execute(sql)
+    points_for_label = {}
     data = []
     while True:
         rows = cur.fetchall()
         if len(rows) == 0: break
-        # TODO: calculate deviation here
-        data += [r + (0,) for r in rows] # set the deviation (error) to 0 for now
+        #data += [[r[0]] + map(float, r[1:3]) + [0] for r in rows]
+        for r in rows:
+            lbl, x, y = r[:3]
+            if lbl not in points_for_label: points_for_label[lbl] = {}
+            if x not in points_for_label[lbl]: points_for_label[lbl][x] = []
+            points_for_label[lbl][x].append(float(y))
+
+    for lbl, points in points_for_label.iteritems():
+        for x, ys in points.iteritems():
+            data.append((lbl, float(x), np.average(ys), np.std(ys)))
     return data
 
 
 def plot_variables(fh=None, filename=None, out_dir="./",
         label_field='mode', label_order=None,
-        independent_vars=None, dependent_vars=None):
+        independent_vars=None, plot_independent_vars=None, dependent_vars=None):
     assert(fh or filename)
     assert(independent_vars)
     assert(dependent_vars)
@@ -55,7 +65,8 @@ def plot_variables(fh=None, filename=None, out_dir="./",
 
     labels = _get_labels(cur, label_field)
 
-    for ind_var in independent_vars:                                    # Choose an independent variable
+    if plot_independent_vars is None: plot_independent_vars = independent_vars
+    for ind_var in plot_independent_vars:                                    # Choose an independent variable
         other_ind_vars = [v for v in independent_vars if v != ind_var]  # Find all the other independent variables
         combinations = _get_ind_var_combinations(cur, other_ind_vars)   # Find the combinations of the other ind. vars.
         for dep_var in dependent_vars:
@@ -88,6 +99,8 @@ if __name__ == '__main__':
             type=str, default=None, required=False)
     parser.add_argument('--ind-vars', '-i', help='Comma-separated list of independent variable names',
             type=str, required=True)
+    parser.add_argument('--plot-ind-vars', '-I', help='Comma-separated list of independent variables to plot',
+            type=str, required=False)
     parser.add_argument('--dep-vars', '-d', help='Comma-separated list of dependent variable names',
             type=str, required=True)
     args = parser.parse_args()
@@ -102,4 +115,5 @@ if __name__ == '__main__':
             label_field = args.label,
             label_order = _tolist(args.label_order) if args.label_order else None,
             independent_vars = _tolist(args.ind_vars),
+            plot_independent_vars=_tolist(args.plot_ind_vars),
             dependent_vars = _tolist(args.dep_vars))

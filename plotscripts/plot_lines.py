@@ -30,16 +30,14 @@ def plot_lines(data, xlabel=None, ylabel=None, title=None, label_order=None):
     unseen_labels = [l for l in labels if not l in local_label_order]
     local_label_order += unseen_labels
 
-
     handles = []
     for label in [l for l in local_label_order if l in labels]:
         if not label in label_style_hist:
             label_style_hist[label] = dict(line=linestyles.next(), marker=markers.next())
 
-        points = [r for r in data if r[0] == label]
-        x = [p[1] for p in points]
-        y = [p[2] for p in points]
-        handles += ax.plot(x, y, label=label,
+        points = [r[1:4] for r in data if r[0] == label]
+        x, y, yerr = zip(*points)
+        handles += ax.errorbar(x, y, yerr=yerr, label=label,
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
 
     if not title is None: ax.set_title(title)
