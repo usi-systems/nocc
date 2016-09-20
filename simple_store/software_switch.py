@@ -15,12 +15,20 @@ class SwitchCache:
         self.optimistic_values = {}
 
     # only a response from the store should update the cache
-    def insert(self, key=None, value=None):
+    def insert(self, key=None, value=None, o=None):
+        if o:
+            key, value = o.key, o.value
         if key in self.optimistic_values: del self.optimistic_values[key]
         self.values[key] = value
 
-    def optimisticInsert(self, key=None, value=None):
-        self.optimistic_values[key] = value
+    def optimisticInsert(self, key=None, value=None, o=None):
+        self.optimistic_values[o.key if o else key] = o.value if o else value
+
+    def optiValue(self, o=None, key=None):
+        key = o.key if o else key
+        if key in self.optimistic_values: return self.optimistic_values[key]
+        elif key in self.values: return self.values[key]
+        else: return '' # by default, a missing object has value ''
 
 class ClientPort(asyncore.dispatcher):
 
@@ -35,8 +43,8 @@ class ClientPort(asyncore.dispatcher):
         return False
 
     def handle_read(self):
-        data, cl_addr = self.recvfrom(REQMSG_SIZE)
-        req = ReqMsg(binstr=data)
+        data, cl_addr = self.recvfrom(TXNMSG_SIZE)
+        req = TxnMsg(binstr=data)
         self.client_map[req.cl_id] = cl_addr
         self.req_queue.put(req)
 
@@ -59,9 +67,9 @@ class StorePort(asyncore.dispatcher):
         return False
 
     def handle_read(self):
-        data, fromaddr = self.recvfrom(RESPMSG_SIZE)
+        data, fromaddr = self.recvfrom(TXNMSG_SIZE)
         assert(fromaddr == self.store_addr)
-        res = RespMsg(binstr=data)
+        res = TxnMsg(binstr=data)
         self.res_queue.put(res)
 
     def sendReq(self, req):
@@ -105,6 +113,12 @@ class SoftwareSwitch:
         if self.client_delay: sleep(self.client_delay)
         self.client_port.sendRes(res)
 
+    def _txn(self, k=None, o=None, t=TXN_VALUE, opti=False):
+        assert(k or (o and o.key))
+        k = o.key if o else k
+        return TxnObj(t=t, key=k,
+                value=self.cache.optiValue(key=k) if opti else self.cache.values[k])
+
     def _clientHandler(self):
         while True:
             req = self.req_queue.get()
@@ -116,28 +130,33 @@ class SoftwareSwitch:
                 self._sendToStore(req)
                 continue
 
-            if req.r_key != 0 and req.w_key != 0: # RW operation
-                if self.mode == 'optimistic_abort' and req.r_key in self.cache.optimistic_values:
-                    if req.r_value != self.cache.optimistic_values[req.r_key]:
-                        abort_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OPTIMISTIC_ABORT, from_switch=1,
-                                key=req.r_key, value=self.cache.optimistic_values[req.r_key])
-                        self._sendToClient(abort_msg)
-                        continue
-                elif req.r_key in self.cache.values and not req.r_value == self.cache.values[req.r_key]:
-                    abort_msg = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_ABORT, from_switch=1,
-                            key=req.r_key, value=self.cache.values[req.r_key])
-                    self._sendToClient(abort_msg)
-                    continue
-            elif req.r_key != 0:                  # R operation
-                if req.r_key in self.cache.values:
-                    resp = RespMsg(cl_id=req.cl_id, req_id=req.req_id, status=STATUS_OK, from_switch=1,
-                            key=req.r_key, value=self.cache.values[req.r_key])
-                    self._sendToClient(resp)
-                    continue
+            r_ops = [o for o in req.txn if o.type == TXN_READ]
+            w_ops = [o for o in req.txn if o.type == TXN_WRITE]
 
-            if self.mode == 'optimistic_abort':
-                if req.w_key != 0:
-                    self.cache.optimisticInsert(key=req.w_key, value=req.w_value)
+            if len(r_ops) > 0 and len(w_ops) > 0: # RW operation
+                if self.mode == 'optimistic_abort':
+                    bad_reads = [self._txn(o=o, opti=True) for o in r_ops
+                            if self.cache.optiValue(o) != o.value]
+                    if len(bad_reads) > 0:
+                        self._sendToClient(TxnMsg(
+                            replyto=req, txn=bad_reads, status=STATUS_OPTIMISTIC_ABORT, from_switch=1))
+                        continue
+                else:
+                    bad_reads = [self._txn(o=o) for o in r_ops if self.cache.values[o.key] != o.value]
+                    if len(bad_reads) > 0:
+                        self._sendToClient(TxnMsg(
+                            replyto=req, txn=bad_reads, status=STATUS_ABORT, from_switch=1))
+                        continue
+
+            if len(w_ops) > 0:
+                if self.mode == 'optimistic_abort':
+                    for o in w_ops: self.cache.optimisticInsert(o=o)
+            else: # R Operation
+                cached_reads = [self._txn(o=o) for o in r_ops if o.key in self.cache.values]
+                if len(cached_reads) == len(r_ops):
+                    self._sendToClient(TxnMsg(
+                        replyto=req, status=STATUS_OK, txn=cached_reads, from_switch=1))
+                    continue
 
             # Otherwise, just forward packet:
             self._sendToStore(req)
@@ -154,8 +173,10 @@ class SoftwareSwitch:
                 continue
 
             # Update our cache, if necessary:
-            if res.status == STATUS_OK and res.key != 0:
-                self.cache.insert(key=res.key, value=res.value)
+            if res.status == STATUS_OK and len(res.txn) > 0:
+                updates = [o for o in res.txn if o.type == TXN_UPDATED]
+                for o in updates:
+                    self.cache.insert(o=o)
 
             self._sendToClient(res)
 

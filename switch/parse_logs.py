@@ -88,14 +88,21 @@ def getExperimentStats(experiment_dir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("dir", type=str, help="experiment directory", nargs='*')
-    parser.add_argument("--json", "-j", action="store_true", help="output as JSON")
+    parser.add_argument("--jobs", "-j", type=int, action="store", default=None, help="number of parallel jobs")
+    parser.add_argument("--json", "-J", action="store_true", help="output as JSON")
     parser.add_argument("--header", "-H", action="store_true", help="print header")
     args = parser.parse_args()
 
-    n_cpu = multiprocessing.cpu_count()
-    n_job = n_cpu if n_cpu == 1 else n_cpu - 1
-    p = multiprocessing.Pool(n_job)
-    summaries = p.map(getExperimentStats, args.dir)
+    n_job = args.jobs
+    if n_job is None:
+        n_cpu = multiprocessing.cpu_count()
+        n_job = n_cpu if n_cpu == 1 else n_cpu - 1
+
+    if n_job > 1:
+        p = multiprocessing.Pool(n_job)
+        summaries = p.map(getExperimentStats, args.dir)
+    else:
+        summaries = map(getExperimentStats, args.dir)
 
     if args.json:
         print json.dumps(summaries, indent=1, sort_keys=True)

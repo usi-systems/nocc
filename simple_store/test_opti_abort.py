@@ -16,62 +16,69 @@ parser.add_argument("host", type=str, help="server hostname")
 parser.add_argument("port", type=int, help="server port")
 args = parser.parse_args()
 
-logger = GotthardLogger(args.log) if args.log else None
+r, w = StoreClient.r, StoreClient.w
 
-with StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as cl1, StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as cl2:
+logger = GotthardLogger(args.log, stdout=False) if args.log else None
+
+with StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as cl1, StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=2) as cl2:
 
     # Populate the store with one key:
-    resp = cl1.req(w_key=1, w_value='a')
-    assert(resp.status == STATUS_OK)
+    res = cl1.req(w(1, 'a'))
+    assert(res.status == STATUS_OK)
 
     # Issue T1:
-    cl1.reqAsync(r_key=1, r_value='a', w_key=1, w_value='b')
+    cl1.reqAsync([r(1, 'a'), w(1, 'b')])
     # Issue T2 before T1 commits:
-    cl2.reqAsync(r_key=1, r_value='a', w_key=1, w_value='b')
+    cl2.reqAsync([r(1, 'a'), w(1, 'b')])
 
-    resp1, resp2 = cl1.recvresp(), cl2.recvresp()
+    res1, res2 = cl1.recvres(), cl2.recvres()
 
-    assert(resp1.status == STATUS_OK) # T1 should have succeeded
-    assert(resp2.status == STATUS_OPTIMISTIC_ABORT) # T2 not
-    assert(resp1.from_switch == 0) # store should have commited it
-    assert(resp2.from_switch == 1) # should be aborted by switch
-    assert(resp2.key == 1)
-    assert(resp2.value.rstrip('\0') == 'b')
+    assert(res1.status == STATUS_OK) # T1 should have succeeded
+    assert(res2.status == STATUS_OPTIMISTIC_ABORT) # T2 not
+    assert(res1.flags.from_switch == 0) # store should have commited it
+    assert(res2.flags.from_switch == 1) # should be aborted by switch
+    assert(res2.txn[0].key == 1)
+    assert(res2.txn[0].value.rstrip('\0') == 'b')
 
     # Use the value in the ABORT msg to make another request:
-    cl1.reqAsync(r_key=1, r_value='b', w_key=1, w_value='c') # T1
-    t2resp1 = cl2.req(r_key=1, r_value='b', w_key=1, w_value='c') # T2
-    assert(t2resp1.status == STATUS_OPTIMISTIC_ABORT)
-    assert(t2resp1.from_switch == 1) # should be aborted by switch
+    cl1.reqAsync([r(1, 'b'), w(1, 'c')]) # T1
+    t2res1 = cl2.req([r(1, 'b'), w(1, 'c')]) # T2
+    assert(t2res1.status == STATUS_OPTIMISTIC_ABORT)
+    assert(t2res1.flags.from_switch == 1) # should be aborted by switch
+    assert(t2res1.txn[0].type == TXN_VALUE) # the optimistic value
+    assert(t2res1.txn[0].value.rstrip('\0') == 'c')
 
-    t2resp2 = cl2.req(r_key=1, r_value=t2resp1.value, w_key=1, w_value='d') # T2'
-    assert(t2resp2.status == STATUS_OK)
-    assert(t2resp2.value.rstrip('\0') == 'd')
+    cl2.reqAsync([r(1, t2res1.txn[0].value), w(1, 'd')]) # T2'
 
-    t1resp = cl1.recvresp()
-    assert(t1resp.status == STATUS_OK)
-    assert(t1resp.value.rstrip('\0') == 'c')
+    t1res = cl1.recvres() # In the meantime, T1 should have succeeded
+    assert(t1res.status == STATUS_OK)
+    assert(t1res.txn[0].value.rstrip('\0') == 'c')
+
+    t2res2 = cl2.recvres()
+    assert(t2res2.status == STATUS_OK)
+    assert(t2res2.txn[0].value.rstrip('\0') == 'd')
+
 
     # Try three RW while the first TXN is still in flight:
-    cl1.reqAsync(w_key=1, w_value='a') # T1
+    cl1.reqAsync(w(1, 'a')) # T1
     sleep(0.005)
-    cl2.reqAsync(r_key=1, r_value='a', w_key=1, w_value='b') # T2
+    cl2.reqAsync([r(1, 'a'), w(1, 'b')]) # T2
     sleep(0.005)
-    cl2.reqAsync(r_key=1, r_value='b', w_key=1, w_value='c') # T3
+    cl2.reqAsync([r(1, 'b'), w(1, 'c')]) # T3
     sleep(0.005)
-    cl2.reqAsync(r_key=1, r_value='c', w_key=1, w_value='d') # T4
+    cl2.reqAsync([r(1, 'c'), w(1, 'd')]) # T4
 
-    t1resp = cl1.recvresp()
-    t2resp, t3resp, t4resp = cl2.recvresp(), cl2.recvresp(), cl2.recvresp()
-    assert(t1resp.status == STATUS_OK)
-    assert(t1resp.value.rstrip('\0') == 'a')
-    assert(t2resp.status == STATUS_OK)
-    assert(t2resp.value.rstrip('\0') == 'b')
-    assert(t3resp.status == STATUS_OK)
-    assert(t3resp.value.rstrip('\0') == 'c')
-    assert(t4resp.status == STATUS_OK)
-    assert(t4resp.value.rstrip('\0') == 'd')
+    t1res = cl1.recvres()
+    t2res, t3res, t4res = cl2.recvres(), cl2.recvres(), cl2.recvres()
+    assert(t1res.status == STATUS_OK)
+    assert(t1res.txn[0].value.rstrip('\0') == 'a')
+    assert(t2res.status == STATUS_OK)
+    assert(t2res.txn[0].value.rstrip('\0') == 'b')
+    assert(t3res.status == STATUS_OK)
+    assert(t3res.txn[0].value.rstrip('\0') == 'c')
+    assert(t4res.status == STATUS_OK)
+    assert(t4res.txn[0].value.rstrip('\0') == 'd')
 
     # cleanup
-    resp = cl1.req(w_key=1, w_value='')
-    assert(resp.status == STATUS_OK)
+    res = cl1.req(w(1, ''))
+    assert(res.status == STATUS_OK)

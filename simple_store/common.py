@@ -12,139 +12,157 @@ STATUS_OK = 0
 STATUS_ABORT = 1
 STATUS_OPTIMISTIC_ABORT = 2
 
+TXN_READ    = 0 # request: I would like to get the value of this obj
+TXN_WRITE   = 1 # request: write this value to the object
+TXN_VALUE   = 2 # response: this is the current value of the object
+TXN_UPDATED = 3 # response: the value the object was just set to
+
+txn_obj_type_to_string = {TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
+
 VALUE_SIZE = 100
 
 status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT']
 
-OP_R =  1
-OP_W =  2
-OP_RW = 3
+class BitFlags:
 
-reqmsg_fmt = '!B I i i i %ds %ds' % (VALUE_SIZE, VALUE_SIZE)
-REQMSG_SIZE = struct.Struct(reqmsg_fmt).size
+    def __init__(self, size=1, flags=[], value=0):
+        self.size = size
+        self.bits = size * 8
+        self.flags = flags
+        self.unpack(value)
 
-class BaseMsg:
-    flags = 0
-    FLAGS = ['type', 'updated', 'from_switch']
+    def pack(self): # XXX This probably won't work for anything bigger than a byte
+        binary = (''.join(['1' if getattr(self, f) else '0' for f in self.flags])).ljust(self.bits, '0')
+        self.value = int(binary, 2)
+        return self.value
 
-    def __init__(self):
-        for f in self.FLAGS: setattr(self, f, 0) # init flags to 0
-
-    def _packflags(self):
-        binary = (''.join(['1' if getattr(self, f) else '0' for f in self.FLAGS])).ljust(8, '0')
-        self.flags = int(binary, 2)
-
-    def _unpackflags(self):
-        binary = bin(self.flags)[2:].rjust(8, '0')
-        for i, f in enumerate(self.FLAGS):
+    def unpack(self, value=None):
+        if not value is None: self.value = value
+        binary = bin(self.value)[2:].rjust(self.bits, '0')
+        for i, f in enumerate(self.flags):
             setattr(self, f, int(binary[i]))
+        return self
 
-class ReqMsg(BaseMsg):
-    cl_id = 0
-    req_id = 0
-    r_key = 0
-    w_key = 0
-    r_value = ''
-    w_value = ''
+    def __str__(self):
+        return str(dict(self))
 
-    def __init__(self, binstr=None, cl_id=0, req_id=0, r_key=0, w_key=0, r_value='', w_value=''):
-        BaseMsg.__init__(self)
-        self.type = TYPE_REQ
+    def __iter__(self):
+        for f in self.flags: yield f, getattr(self, f)
+
+
+txnobj_fmt = '!B i %ds' % VALUE_SIZE
+TXNOBJ_SIZE = struct.Struct(txnobj_fmt).size
+MAX_TXNOBJ = 10
+
+class TxnObj:
+
+    def __init__(self, binstr=None, key=None, value='', t=None):
         if binstr is not None:
             self.unpack(binstr)
         else:
-            self.cl_id, self.req_id, self.r_key, self.w_key, self.r_value, self.w_value = cl_id, req_id, r_key, w_key, r_value, w_value
-
-    def op(self):
-        if self.r_key != 0 and self.w_key != 0: return OP_RW
-        elif self.r_key != 0: return OP_R
-        elif self.w_key != 0: return OP_W
+            assert(t in [TXN_VALUE, TXN_READ, TXN_WRITE, TXN_UPDATED])
+            assert(type(key) is int)
+            assert(type(value) is str)
+            self.type, self.key, self.value = t, key, value
 
     def unpack(self, binstr):
-        self.flags, self.cl_id, self.req_id, self.r_key, self.w_key, self.r_value, self.w_value = struct.unpack(reqmsg_fmt, binstr)
-        self._unpackflags()
+        self.type, self.key, self.value = struct.unpack(txnobj_fmt, binstr)
 
     def pack(self):
-        self._packflags()
-        return struct.pack(reqmsg_fmt, self.flags, self.cl_id, self.req_id, self.r_key, self.w_key, self.r_value, self.w_value)
+        return struct.pack(txnobj_fmt, self.type, self.key, self.value)
 
     def __str__(self):
-        return "ReqMsg(%s)" % dict(self)
+        return str(dict(self))
+
+    def __repr__(self):
+        return self.__str__()
 
     def __iter__(self):
-        yield 'w_value', self.w_value.rstrip('\0')
-        yield 'r_value', self.r_value.rstrip('\0')
-        for f in ['cl_id', 'req_id', 'r_key', 'w_key', 'updated']:
-            yield f, getattr(self, f)
+        yield 't', txn_obj_type_to_string[self.type]
+        yield 'k', self.key
+        yield 'v', self.value.rstrip('\0')
 
 
-respmsg_fmt = '!B I i B i %ds' % (VALUE_SIZE)
-RESPMSG_SIZE = struct.Struct(respmsg_fmt).size
+txnmsg_fmt = '!B I i B B %ds' % (TXNOBJ_SIZE*MAX_TXNOBJ)
+TXNMSG_SIZE = struct.Struct(txnmsg_fmt).size
 
-class RespMsg(BaseMsg):
+class TxnMsg:
+    flags = None
     cl_id = 0
     req_id = 0
-    status = STATUS_OK
-    key = 0
-    value = ''
+    status = 0
+    txn = []
 
-    def __init__(self, binstr=None, cl_id=0, req_id=0, status=0, key=0, value='', updated=0, from_switch=0):
-        BaseMsg.__init__(self)
-        self.type = TYPE_RES
+    def __init__(self, binstr=None, req=False, res=False, replyto=None, cl_id=0, req_id=0, status=0, from_switch=0, txn=[]):
+        self.flags = BitFlags(flags=['type', 'from_switch'])
+        self.flags.from_switch = from_switch
         if binstr is not None:
             self.unpack(binstr)
+        elif replyto is not None:
+            self.flags.type = TYPE_REQ if replyto.flags.type == TYPE_RES else TYPE_RES
+            self.cl_id, self.req_id, self.status, self.txn = replyto.cl_id, replyto.req_id, status, txn
         else:
-            self.cl_id, self.req_id, self.status, self.key, self.value, self.updated, self.from_switch = cl_id, req_id, status, key, value, updated, from_switch
+            assert((req or res) and not (req and res))
+            self.flags.type = TYPE_REQ if req else TYPE_RES
+            self.cl_id, self.req_id, self.status, self.txn = cl_id, req_id, status, txn
 
     def unpack(self, binstr):
-        self.flags, self.cl_id, self.req_id, self.status, self.key, self.value = struct.unpack(respmsg_fmt, binstr)
-        self._unpackflags()
+        flags_value, self.cl_id, self.req_id, self.status, txn_cnt, txn_binstr = struct.unpack(txnmsg_fmt, binstr)
+        assert(txn_cnt <= MAX_TXNOBJ)
+        self.flags.unpack(flags_value)
+        self.txn = [TxnObj(binstr=txn_binstr[i:i+TXNOBJ_SIZE]) for i in xrange(0, txn_cnt*TXNOBJ_SIZE, TXNOBJ_SIZE)]
 
     def pack(self):
-        self._packflags()
-        return struct.pack(respmsg_fmt, self.flags, self.cl_id, self.req_id, self.status, self.key, self.value)
+        txn_binstr = ''.join([txn.pack() for txn in self.txn])
+        return struct.pack(txnmsg_fmt, self.flags.pack(), self.cl_id, self.req_id,
+                self.status, len(self.txn), txn_binstr)
 
     def __str__(self):
-        return "RespMsg(%s)" % dict(self)
+        return "Txn%s(%s)" % ('Req' if self.flags.type == TYPE_REQ else 'Res', dict(self))
 
     def __iter__(self):
-        yield 'value', self.value.rstrip('\0')
-        yield 'status', status_to_string[self.status]
-        for f in ['cl_id', 'req_id', 'key', 'updated', 'from_switch']:
+        if self.flags.type == TYPE_RES: yield 'status', status_to_string[self.status]
+        if self.flags.from_switch: yield 'from_switch', self.flags.from_switch
+        for f in ['cl_id', 'req_id', 'txn']:
             yield f, getattr(self, f)
+
+
 
 class Store:
     values = {}
     sequences = {}
     seq = 0
 
-    def read(self, key=None):
-        return (STATUS_OK, key,
-                self.values[key] if key in self.values else '')
+    def _get(self, o=None, k=None, t=TXN_VALUE):
+        assert(k or (o and o.key))
+        return TxnObj(t=t, key=o.key if o else k,
+                value=self.values[o.key if o else k])
 
-    def write(self, key=None, value=None):
-        if value is None: # w(key, None) is treated as remove
-            if key in self.values.keys():
-                del self.values[key]
-                del self.sequences[key]
-            new_value = ''
-        else:
-            self.values[key] = value
-            self.seq += 1
-            self.sequences[key] = self.seq
-            new_value = value
-        return (STATUS_OK, key, new_value)
+    def applyTxn(self, txn=[]):
+        r_ops = [o for o in txn if o.type == TXN_READ]
+        w_ops = [o for o in txn if o.type == TXN_WRITE]
 
-    def readwrite(self, r_key=None, r_value=None, w_key=None, w_value=None):
-        assert(r_key != 0)
-        if r_key in self.values.keys() and self.values[r_key] != r_value:
-            return (STATUS_ABORT, r_key, self.values[r_key])
-        return self.write(key=w_key, value=w_value)
+        # If it's a RW TXN, check that the reads are valid:
+        if len(r_ops) > 0 and len(w_ops) > 0:
+            bad_reads = [self._get(o=o) for o in r_ops if self.values[o.key] != o.value]
+            if len(bad_reads) > 0:
+                return (STATUS_ABORT, bad_reads)
+
+        # Process all the write operations:
+        if len(w_ops) > 0:
+            for o in w_ops:
+                self.seq += 1
+                self.sequences[o.key] = self.seq
+                self.values[o.key] = o.value
+            return (STATUS_OK, [self._get(o=o, t=TXN_UPDATED) for o in w_ops])
+
+        # Otherwise, this was simply a read TXN
+        return (STATUS_OK, [self._get(o=o) for o in r_ops])
 
     def __str__(self):
-        s = "key\tvers\tvalue\n"
+        s = "key\tseq\tvalue\n"
         for key in self.values.keys():
-            s += "%d\t%d\t%s\n" % (key, self.sequences[key], self.values[key])
+            s += "%d\t%d\t%s\n" % (key, self.sequences[key], self.values[key].rstrip('\0'))
         return s
 
 class StoreClient:
@@ -185,21 +203,22 @@ class StoreClient:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def req(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
-        req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
+    def req(self, txn, req_id=None):
+        req = self.buildreq(req_id=req_id, txn=txn)
         self.sendreq(req)
-        return self.recvresp()
+        return self.recvres(req_id=req.req_id)
 
-    def reqAsync(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
-        req = self.buildreq(req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
+    def reqAsync(self, txn, req_id=None):
+        req = self.buildreq(req_id=req_id, txn=txn)
         self.sendreq(req)
         return req.req_id
 
-    def buildreq(self, req_id=None, r_key=0, r_value='', w_key=0, w_value=''):
+    def buildreq(self, req_id=None, txn=None):
         if req_id is None:
             self.req_id_seq += 1
             req_id = self.req_id_seq
-        req = ReqMsg(cl_id=self.cl_id, req_id=req_id, r_key=r_key, r_value=r_value, w_key=w_key, w_value=w_value)
+        if type(txn) != list: txn = [txn]
+        req = TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id, txn=txn)
         return req
 
     def sendreq(self, req):
@@ -207,15 +226,15 @@ class StoreClient:
         self.sock.sendto(req_data, self.store_addr)
         self._log("sent", req=req)
 
-    def recvresp(self, req_id=None):
+    def recvres(self, req_id=None):
         if not req_id is None and req_id in self.recv_queue:
             res = self.recv_queue[req_id]
             del self.recv_queue[req_id]
             return res
         while True:
-            data, fromaddr = self.sock.recvfrom(RESPMSG_SIZE)
+            data, fromaddr = self.sock.recvfrom(TXNMSG_SIZE)
             assert(fromaddr == self.store_addr)
-            res = RespMsg(binstr=data)
+            res = TxnMsg(binstr=data)
             self._log("received", res=res)
             if not req_id is None:
                 if req_id != res.req_id:
@@ -223,11 +242,20 @@ class StoreClient:
                     continue
             return res
 
+    @staticmethod
+    def w(key, val):
+        return TxnObj(t=TXN_WRITE, key=key, value=val)
+
+    @staticmethod
+    def r(key, val=''):
+        return TxnObj(t=TXN_READ, key=key, value=val)
+
 
 class GotthardLogger:
-    def __init__(self, filename):
+    def __init__(self, filename, stdout=False):
         self.logfile = os.fdopen(os.open(filename, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0666), 'a')
         self.closed = threading.Event()
+        self.stdout = stdout
         self.last_log = 0
 
         def heartbeat():
@@ -243,7 +271,10 @@ class GotthardLogger:
         l = dict(time=self.last_log, event=event)
         if req: l['req'] = dict(req)
         if res: l['res'] = dict(res)
-        self.logfile.write(json.dumps(l, sort_keys=True) + "\n")
+        line = json.dumps(l, default=lambda x: dict(x), sort_keys=True)
+        if self.stdout:
+            print line
+        self.logfile.write(line + "\n")
 
     def close(self):
         if self.closed.isSet(): return
