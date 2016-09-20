@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# Adapted from code in this answer: http://stackoverflow.com/a/30734789
+# From the SO question: http://stackoverflow.com/questions/2887878/importing-a-csv-file-into-a-sqlite3-database-table-using-python
 import csv, sqlite3
 import io
 import logging
