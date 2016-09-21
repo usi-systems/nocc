@@ -2,6 +2,7 @@ import json
 import argparse
 import multiprocessing
 import sys
+import numpy as np
 from os import path, listdir
 sys.path.append('../simple_store')
 from common import *
@@ -18,16 +19,36 @@ default_st = dict(abort_count=0, optimistic_abort_count=0,
 
 def getClientStats(filename):
     st = default_st.copy()
+
+    outstanding_req_time = {} # the time of req_ids awaiting a response
+    req_rtts = [] # the RTT for each txn msg
+
+    st['txn_start_time'] = None # the last req time before a successful response
+    txn_times = [] # the times it takes to successfully complete a TXN
     def clientHook(e):
         if e['event'] == 'sent':
             if st['start'] is None: st['start'] = e['time']
             st['sent_count'] += 1
+            if st['txn_start_time'] is None:
+                st['txn_start_time'] = e['time']
+            outstanding_req_time[e['req']['req_id']] = e['time']
         elif e['event'] == 'received':
             st['end'] = e['time']
             st['recv_count'] += 1
             if e['res']['status'] == 'OPTIMISTIC_ABORT': st['optimistic_abort_count'] += 1
             if e['res']['status'] == 'ABORT': st['abort_count'] += 1
+            if e['res']['status'] == 'OK':
+                assert(st['txn_start_time'] is not None)
+                txn_times.append(e['time'] - st['txn_start_time'])
+                st['txn_start_time'] = None
+
+            assert(e['res']['req_id'] in outstanding_req_time)
+            req_rtts.append(e['time'] - outstanding_req_time[e['res']['req_id']])
+            del outstanding_req_time[e['res']['req_id']]
     parseLog(clientHook, filename)
+    del st['txn_start_time']
+    st['avg_txn_time'] = np.mean(txn_times)
+    st['avg_req_rtt'] = np.mean(req_rtts)
     return st
 
 def getServerStats(filename):
@@ -54,10 +75,12 @@ def getExperimentStats(experiment_dir):
 
     log_filenames = filter(path.isfile, [path.join(log_dir, f) for f in listdir(log_dir) if f[-4:] == '.log'])
     client_log_filenames = [f for f in log_filenames if not 'server' in path.basename(f)]
-    server_log_filename = [f for f in log_filenames if 'server' in path.basename(f)][0]
+    if len(client_log_filenames) < 1: raise Exception("No client logs found in: %s"%log_dir)
+    server_log_filenames = [f for f in log_filenames if 'server' in path.basename(f)]
+    if len(server_log_filenames) < 1: raise Exception("No server logs found in: %s"%log_dir)
     client_names = [path.basename(f).split('.log')[0] for f in client_log_filenames]
 
-    srv_stats = getServerStats(server_log_filename)
+    srv_stats = getServerStats(server_log_filenames[0])
     cl_stats = [dict(getClientStats(f), **dict(name=name)) for name, f
             in zip(client_names, client_log_filenames)]
 
@@ -65,13 +88,20 @@ def getExperimentStats(experiment_dir):
     summary['total_aborts'] = sum([st['abort_count'] for st in cl_stats]) + sum([st['optimistic_abort_count'] for st in cl_stats])
     summary['total_sent'] = sum([st['sent_count'] for st in cl_stats])
     summary['total_recv'] = sum([st['recv_count'] for st in cl_stats])
+    summary['avg_txn_time'] = np.mean([st['avg_txn_time'] for st in cl_stats])
+    summary['avg_req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
     summary['srv_sent'] = srv_stats['sent_count']
     summary['srv_recv'] = srv_stats['recv_count']
     summary['srv_abort'] = srv_stats['abort_count']
 
     summary['pct_shortcut_abort'] = 0 if summary['total_aborts'] == 0 else float(summary['total_aborts'] - summary['srv_abort']) / summary['total_aborts']
 
-    summary['elapsed_time'] = max([st['end'] for st in cl_stats]) - min([st['start'] for st in cl_stats])
+    summary['first_start_time'] = min([st['start'] for st in cl_stats])
+    summary['last_start_time'] = max([st['start'] for st in cl_stats])
+    summary['first_end_time'] = min([st['end'] for st in cl_stats])
+    summary['last_end_time'] = max([st['end'] for st in cl_stats])
+    summary['elapsed_time'] = summary['last_end_time'] - summary['first_start_time']
+    summary['concurrent_time'] = summary['first_end_time'] - summary['last_start_time']
 
     experiment_params = dict(client_d=conf['clients'][0]['delay'],
                 store_D=conf['server']['delay'],
