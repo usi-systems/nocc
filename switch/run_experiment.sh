@@ -17,10 +17,11 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 CONF_FILE=$1
+shift
 
 $P4C_BM_SCRIPT p4src/$PROG.p4 --json $PROG.json --p4-v1.1
 sudo python experiment.py \
     --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
     --config $CONF_FILE \
     --pcap-dump \
-    --json $PROG.json
+    --json $PROG.json $@

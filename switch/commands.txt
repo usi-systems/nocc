@@ -1,10 +1,13 @@
 table_set_default send_frame _drop
 table_set_default forward _drop
 table_set_default ipv4_lpm _drop
-table_set_default gotthard_res_table do_gotthard_res
-table_set_default gotthard_cache_table do_gotthard_cache_lookup
-table_set_default gotthard_req_hit_table do_gotthard_hit
-table_set_default gotthard_req_reject_table do_gotthard_reject
+
+table_set_default t_res do_res_check
+table_set_default t_req do_req_check
+table_set_default t_loop_req_txn do_loop_req_txn
+table_set_default t_resubmit_loop_req_txn do_resubmit_loop_req_txn
+table_set_default t_abort do_abort
+
 table_add send_frame rewrite_mac 1 => 00:aa:bb:00:00:00
 table_add send_frame rewrite_mac 2 => 00:aa:bb:00:00:01
 table_add send_frame rewrite_mac 3 => 00:aa:bb:00:00:02

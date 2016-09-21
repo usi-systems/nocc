@@ -20,4 +20,4 @@ source $THIS_DIR/env.sh
 
 CLI_PATH=$BMV2_PATH/targets/simple_switch/sswitch_CLI
 
-echo "register_read $1 $2" | $CLI_PATH simple_router.json
+echo "register_read $1 $2" | $CLI_PATH gotthard_router.json
