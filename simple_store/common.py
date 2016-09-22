@@ -14,8 +14,8 @@ STATUS_OPTIMISTIC_ABORT = 2
 
 TXN_READ    = 0 # request: I would like to get the value of this obj
 TXN_WRITE   = 1 # request: write this value to the object
-TXN_VALUE   = 2 # response: this is the current value of the object
-TXN_UPDATED = 3 # response: the value the object was just set to
+TXN_VALUE   = 2 # fact: this is what (I think) the value is
+TXN_UPDATED = 3 # response: the object was just updated to this value
 
 txn_obj_type_to_string = {TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
@@ -139,12 +139,12 @@ class Store:
                 value=self.values[o.key if o else k])
 
     def applyTxn(self, txn=[]):
-        r_ops = [o for o in txn if o.type == TXN_READ]
+        rb_ops = [o for o in txn if o.type == TXN_VALUE] # read before
         w_ops = [o for o in txn if o.type == TXN_WRITE]
 
         # If it's a RW TXN, check that the reads are valid:
-        if len(r_ops) > 0 and len(w_ops) > 0:
-            bad_reads = [self._get(o=o) for o in r_ops if self.values[o.key] != o.value]
+        if len(rb_ops) > 0 and len(w_ops) > 0:
+            bad_reads = [self._get(o=o) for o in rb_ops if self.values[o.key] != o.value]
             if len(bad_reads) > 0:
                 return (STATUS_ABORT, bad_reads)
 
@@ -157,6 +157,8 @@ class Store:
             return (STATUS_OK, [self._get(o=o, t=TXN_UPDATED) for o in w_ops])
 
         # Otherwise, this was simply a read TXN
+        r_ops = [o for o in txn if o.type == TXN_READ]
+        assert(len(r_ops))
         return (STATUS_OK, [self._get(o=o) for o in r_ops])
 
     def __str__(self):
@@ -247,8 +249,9 @@ class StoreClient:
         return TxnObj(t=TXN_WRITE, key=key, value=val)
 
     @staticmethod
-    def r(key, val=''):
-        return TxnObj(t=TXN_READ, key=key, value=val)
+    def r(key, val=None):
+        t = TXN_READ if val is None else TXN_VALUE # r or rb?
+        return TxnObj(t=t, key=key, value=val if val else '')
 
 
 class GotthardLogger:

@@ -130,19 +130,19 @@ class SoftwareSwitch:
                 self._sendToStore(req)
                 continue
 
-            r_ops = [o for o in req.txn if o.type == TXN_READ]
+            rb_ops = [o for o in req.txn if o.type == TXN_VALUE] # read before
             w_ops = [o for o in req.txn if o.type == TXN_WRITE]
 
-            if len(r_ops) > 0 and len(w_ops) > 0: # RW operation
+            if len(rb_ops) > 0 and len(w_ops) > 0: # RW operation
                 if self.mode == 'optimistic_abort':
-                    bad_reads = [self._txn(o=o, opti=True) for o in r_ops
+                    bad_reads = [self._txn(o=o, opti=True) for o in rb_ops
                             if self.cache.optiValue(o) != o.value]
                     if len(bad_reads) > 0:
                         self._sendToClient(TxnMsg(
                             replyto=req, txn=bad_reads, status=STATUS_OPTIMISTIC_ABORT, from_switch=1))
                         continue
                 else:
-                    bad_reads = [self._txn(o=o) for o in r_ops if self.cache.values[o.key] != o.value]
+                    bad_reads = [self._txn(o=o) for o in rb_ops if self.cache.values[o.key] != o.value]
                     if len(bad_reads) > 0:
                         self._sendToClient(TxnMsg(
                             replyto=req, txn=bad_reads, status=STATUS_ABORT, from_switch=1))
@@ -152,6 +152,8 @@ class SoftwareSwitch:
                 if self.mode == 'optimistic_abort':
                     for o in w_ops: self.cache.optimisticInsert(o=o)
             else: # R Operation
+                r_ops = [o for o in req.txn if o.type == TXN_READ]
+                assert(len(r_ops))
                 cached_reads = [self._txn(o=o) for o in r_ops if o.key in self.cache.values]
                 if len(cached_reads) == len(r_ops):
                     self._sendToClient(TxnMsg(
