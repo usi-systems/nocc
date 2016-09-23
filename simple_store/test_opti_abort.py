@@ -37,26 +37,26 @@ with StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as c
     assert(res2.status == STATUS_OPTIMISTIC_ABORT) # T2 not
     assert(res1.flags.from_switch == 0) # store should have commited it
     assert(res2.flags.from_switch == 1) # should be aborted by switch
-    assert(res2.txn[0].key == 1)
-    assert(res2.txn[0].value.rstrip('\0') == 'b')
+    assert(res2.ops[0].key == 1)
+    assert(res2.ops[0].value.rstrip('\0') == 'b')
 
     # Use the value in the ABORT msg to make another request:
     cl1.reqAsync([r(1, 'b'), w(1, 'c')]) # T1
     t2res1 = cl2.req([r(1, 'b'), w(1, 'c')]) # T2
     assert(t2res1.status == STATUS_OPTIMISTIC_ABORT)
     assert(t2res1.flags.from_switch == 1) # should be aborted by switch
-    assert(t2res1.txn[0].type == TXN_VALUE) # the optimistic value
-    assert(t2res1.txn[0].value.rstrip('\0') == 'c')
+    assert(t2res1.ops[0].type == TXN_VALUE) # the optimistic value
+    assert(t2res1.ops[0].value.rstrip('\0') == 'c')
 
-    cl2.reqAsync([r(1, t2res1.txn[0].value), w(1, 'd')]) # T2'
+    cl2.reqAsync([r(1, t2res1.ops[0].value), w(1, 'd')]) # T2'
 
     t1res = cl1.recvres() # In the meantime, T1 should have succeeded
     assert(t1res.status == STATUS_OK)
-    assert(t1res.txn[0].value.rstrip('\0') == 'c')
+    assert(t1res.ops[0].value.rstrip('\0') == 'c')
 
     t2res2 = cl2.recvres()
     assert(t2res2.status == STATUS_OK)
-    assert(t2res2.txn[0].value.rstrip('\0') == 'd')
+    assert(t2res2.ops[0].value.rstrip('\0') == 'd')
 
 
     # Try three RW while the first TXN is still in flight:
@@ -71,13 +71,13 @@ with StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as c
     t1res = cl1.recvres()
     t2res, t3res, t4res = cl2.recvres(), cl2.recvres(), cl2.recvres()
     assert(t1res.status == STATUS_OK)
-    assert(t1res.txn[0].value.rstrip('\0') == 'a')
+    assert(t1res.ops[0].value.rstrip('\0') == 'a')
     assert(t2res.status == STATUS_OK)
-    assert(t2res.txn[0].value.rstrip('\0') == 'b')
+    assert(t2res.ops[0].value.rstrip('\0') == 'b')
     assert(t3res.status == STATUS_OK)
-    assert(t3res.txn[0].value.rstrip('\0') == 'c')
+    assert(t3res.ops[0].value.rstrip('\0') == 'c')
     assert(t4res.status == STATUS_OK)
-    assert(t4res.txn[0].value.rstrip('\0') == 'd')
+    assert(t4res.ops[0].value.rstrip('\0') == 'd')
 
     # cleanup
     res = cl1.req(w(1, ''))

@@ -20,22 +20,22 @@ with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl
     res = cl.req(w(1, 'a'))
     assert(res.status == STATUS_OK)
     assert(res.flags.from_switch == 0) # should not have originated at the switch, but store
-    assert(res.txn[0].key == 1)
-    assert(res.txn[0].value.rstrip('\0') == 'a')
+    assert(res.ops[0].key == 1)
+    assert(res.ops[0].value.rstrip('\0') == 'a')
 
     # Switch should return cached key:
     res = cl.req(r(1))
     assert(res.status == STATUS_OK)
     assert(res.flags.from_switch == 1) # should be cached on switch
-    assert(res.txn[0].key == 1)
-    assert(res.txn[0].value.rstrip('\0') == 'a')
+    assert(res.ops[0].key == 1)
+    assert(res.ops[0].value.rstrip('\0') == 'a')
 
     # Switch should abort bad RW transaction
     res = cl.req([r(1, 'somethingelse'), w(1, 'x')])
     assert(res.status == STATUS_ABORT)
     assert(res.flags.from_switch == 1) # switch should do the abort
-    assert(res.txn[0].key == 1) # and tell us current key state
-    assert(res.txn[0].value.rstrip('\0') == 'a')
+    assert(res.ops[0].key == 1) # and tell us current key state
+    assert(res.ops[0].value.rstrip('\0') == 'a')
 
     # Concurrent requests; should only work for Optimistic Abort enabled switches
     t1_id = cl.reqAsync([r(1, 'a'), w(1, 'b')]) # T1

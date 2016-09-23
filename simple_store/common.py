@@ -17,7 +17,7 @@ TXN_WRITE   = 1 # request: write this value to the object
 TXN_VALUE   = 2 # fact: this is what (I think) the value is
 TXN_UPDATED = 3 # response: the object was just updated to this value
 
-txn_obj_type_to_string = {TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
+txn_op_type_to_string = {TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
 VALUE_SIZE = 100
 
@@ -50,11 +50,11 @@ class BitFlags:
         for f in self.flags: yield f, getattr(self, f)
 
 
-txnobj_fmt = '!B i %ds' % VALUE_SIZE
-TXNOBJ_SIZE = struct.Struct(txnobj_fmt).size
-MAX_TXNOBJ = 10
+txnop_fmt = '!B i %ds' % VALUE_SIZE
+TXNOP_SIZE = struct.Struct(txnop_fmt).size
+MAX_TXNOP = 10
 
-class TxnObj:
+class TxnOp:
 
     def __init__(self, binstr=None, key=None, value='', t=None):
         if binstr is not None:
@@ -66,10 +66,10 @@ class TxnObj:
             self.type, self.key, self.value = t, key, value
 
     def unpack(self, binstr):
-        self.type, self.key, self.value = struct.unpack(txnobj_fmt, binstr)
+        self.type, self.key, self.value = struct.unpack(txnop_fmt, binstr)
 
     def pack(self):
-        return struct.pack(txnobj_fmt, self.type, self.key, self.value)
+        return struct.pack(txnop_fmt, self.type, self.key, self.value)
 
     def __str__(self):
         return str(dict(self))
@@ -78,12 +78,12 @@ class TxnObj:
         return self.__str__()
 
     def __iter__(self):
-        yield 't', txn_obj_type_to_string[self.type]
+        yield 't', txn_op_type_to_string[self.type]
         yield 'k', self.key
         yield 'v', self.value.rstrip('\0')
 
 
-txnmsg_fmt = '!B I i B B %ds' % (TXNOBJ_SIZE*MAX_TXNOBJ)
+txnmsg_fmt = '!B I i B B %ds' % (TXNOP_SIZE*MAX_TXNOP)
 TXNMSG_SIZE = struct.Struct(txnmsg_fmt).size
 
 class TxnMsg:
@@ -91,31 +91,35 @@ class TxnMsg:
     cl_id = 0
     req_id = 0
     status = 0
-    txn = []
+    ops = []
 
-    def __init__(self, binstr=None, req=False, res=False, replyto=None, cl_id=0, req_id=0, status=0, from_switch=0, txn=[]):
+    def __init__(self, binstr=None, req=False, res=False, replyto=None, cl_id=0, req_id=0, status=0, from_switch=0, ops=[]):
         self.flags = BitFlags(flags=['type', 'from_switch'])
         self.flags.from_switch = from_switch
         if binstr is not None:
             self.unpack(binstr)
         elif replyto is not None:
             self.flags.type = TYPE_REQ if replyto.flags.type == TYPE_RES else TYPE_RES
-            self.cl_id, self.req_id, self.status, self.txn = replyto.cl_id, replyto.req_id, status, txn
+            self.cl_id, self.req_id, self.status, self.ops = replyto.cl_id, replyto.req_id, status, ops
         else:
             assert((req or res) and not (req and res))
             self.flags.type = TYPE_REQ if req else TYPE_RES
-            self.cl_id, self.req_id, self.status, self.txn = cl_id, req_id, status, txn
+            self.cl_id, self.req_id, self.status, self.ops = cl_id, req_id, status, ops
 
     def unpack(self, binstr):
-        flags_value, self.cl_id, self.req_id, self.status, txn_cnt, txn_binstr = struct.unpack(txnmsg_fmt, binstr)
-        assert(txn_cnt <= MAX_TXNOBJ)
+        flags_value, self.cl_id, self.req_id, self.status, op_cnt, ops_binstr = struct.unpack(txnmsg_fmt, binstr)
+        assert(op_cnt <= MAX_TXNOP)
         self.flags.unpack(flags_value)
-        self.txn = [TxnObj(binstr=txn_binstr[i:i+TXNOBJ_SIZE]) for i in xrange(0, txn_cnt*TXNOBJ_SIZE, TXNOBJ_SIZE)]
+        self.ops = [TxnOp(binstr=ops_binstr[i:i+TXNOP_SIZE]) for i in xrange(0, op_cnt*TXNOP_SIZE, TXNOP_SIZE)]
 
     def pack(self):
-        txn_binstr = ''.join([txn.pack() for txn in self.txn])
+        ops_binstr = ''.join([op.pack() for op in self.ops])
         return struct.pack(txnmsg_fmt, self.flags.pack(), self.cl_id, self.req_id,
-                self.status, len(self.txn), txn_binstr)
+                self.status, len(self.ops), ops_binstr)
+
+    def op(self, k=None, t=None):
+        found = [o for o in self.ops if (k and o.key == k) or (t and o.type == t)]
+        return found[0] if len(found) == 1 else found
 
     def __str__(self):
         return "Txn%s(%s)" % ('Req' if self.flags.type == TYPE_REQ else 'Res', dict(self))
@@ -123,7 +127,7 @@ class TxnMsg:
     def __iter__(self):
         if self.flags.type == TYPE_RES: yield 'status', status_to_string[self.status]
         if self.flags.from_switch: yield 'from_switch', self.flags.from_switch
-        for f in ['cl_id', 'req_id', 'txn']:
+        for f in ['cl_id', 'req_id', 'ops']:
             yield f, getattr(self, f)
 
 
@@ -135,12 +139,12 @@ class Store:
 
     def _get(self, o=None, k=None, t=TXN_VALUE):
         assert(k or (o and o.key))
-        return TxnObj(t=t, key=o.key if o else k,
+        return TxnOp(t=t, key=o.key if o else k,
                 value=self.values[o.key if o else k])
 
-    def applyTxn(self, txn=[]):
-        rb_ops = [o for o in txn if o.type == TXN_VALUE] # read before
-        w_ops = [o for o in txn if o.type == TXN_WRITE]
+    def applyTxn(self, ops=[]):
+        rb_ops = [o for o in ops if o.type == TXN_VALUE] # read before
+        w_ops = [o for o in ops if o.type == TXN_WRITE]
 
         # If it's a RW TXN, check that the reads are valid:
         if len(rb_ops) > 0 and len(w_ops) > 0:
@@ -157,7 +161,7 @@ class Store:
             return (STATUS_OK, [self._get(o=o, t=TXN_UPDATED) for o in w_ops])
 
         # Otherwise, this was simply a read TXN
-        r_ops = [o for o in txn if o.type == TXN_READ]
+        r_ops = [o for o in ops if o.type == TXN_READ]
         assert(len(r_ops))
         return (STATUS_OK, [self._get(o=o) for o in r_ops])
 
@@ -205,22 +209,22 @@ class StoreClient:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def req(self, txn, req_id=None):
-        req = self.buildreq(req_id=req_id, txn=txn)
+    def req(self, ops, req_id=None):
+        req = self.buildreq(req_id=req_id, ops=ops)
         self.sendreq(req)
         return self.recvres(req_id=req.req_id)
 
-    def reqAsync(self, txn, req_id=None):
-        req = self.buildreq(req_id=req_id, txn=txn)
+    def reqAsync(self, ops, req_id=None):
+        req = self.buildreq(req_id=req_id, ops=ops)
         self.sendreq(req)
         return req.req_id
 
-    def buildreq(self, req_id=None, txn=None):
+    def buildreq(self, req_id=None, ops=None):
         if req_id is None:
             self.req_id_seq += 1
             req_id = self.req_id_seq
-        if type(txn) != list: txn = [txn]
-        req = TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id, txn=txn)
+        if type(ops) != list: ops = [ops]
+        req = TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id, ops=ops)
         return req
 
     def sendreq(self, req):
@@ -246,12 +250,12 @@ class StoreClient:
 
     @staticmethod
     def w(key, val):
-        return TxnObj(t=TXN_WRITE, key=key, value=val)
+        return TxnOp(t=TXN_WRITE, key=key, value=val)
 
     @staticmethod
     def r(key, val=None):
         t = TXN_READ if val is None else TXN_VALUE # r or rb?
-        return TxnObj(t=t, key=key, value=val if val else '')
+        return TxnOp(t=t, key=key, value=val if val else '')
 
 
 class GotthardLogger:

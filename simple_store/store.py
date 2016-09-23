@@ -36,9 +36,9 @@ while True:
     req = TxnMsg(binstr=data)
     if log: log.log("received", req=req)
 
-    status, txn = store.applyTxn(req.txn)
+    status, ops = store.applyTxn(req.ops)
 
-    resp = TxnMsg(replyto=req, status=status, txn=txn)
+    resp = TxnMsg(replyto=req, status=status, ops=ops)
 
     if args.verbosity > 1: print req, " => ", resp
     sock.sendto(resp.pack(), addr)
