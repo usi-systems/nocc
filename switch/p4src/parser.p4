@@ -62,24 +62,31 @@ parser parse_udp {
 }
 
 header gotthard_hdr_t gotthard_hdr;
-header gotthard_txn_t gotthard_txn[GOTTHARD_MAX_TXN];
+header gotthard_op_t gotthard_op[GOTTHARD_MAX_OP];
+header gotthard_op_t gotthard_op2[GOTTHARD_MAX_OP];
 
-header txn_meta_t parsed_meta;
+header op_parse_meta_t parse_meta;
 
-parser parse_txn {
-    extract(gotthard_txn[next]);
-    set_metadata(parsed_meta.txn_cnt, parsed_meta.txn_cnt - 1);
-    return select(parsed_meta.txn_cnt) {
+parser parse_op {
+    extract(gotthard_op[next]);
+    set_metadata(parse_meta.remaining_cnt, parse_meta.remaining_cnt - 1);
+    return select(parse_meta.remaining_cnt) {
         0: ingress;
-        default: parse_txn;
+        default: parse_op;
     }
+}
+parser parse_op2 {
+    // never called, just used to include this header in the parse tree:
+    extract(gotthard_op2[next]);
+    return ingress;
 }
 
 parser parse_gotthard {
     extract(gotthard_hdr);
-    set_metadata(parsed_meta.txn_cnt, gotthard_hdr.txn_cnt);
-    return select(gotthard_hdr.txn_cnt) {
+    set_metadata(parse_meta.remaining_cnt, gotthard_hdr.op_cnt);
+    return select(parse_meta.remaining_cnt) {
         0: ingress;
-        default: parse_txn;
+        99999: parse_op2; // should never happen
+        default: parse_op;
     }
 }

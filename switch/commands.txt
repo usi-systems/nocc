@@ -2,10 +2,15 @@ table_set_default send_frame _drop
 table_set_default forward _drop
 table_set_default ipv4_lpm _drop
 
-table_set_default t_res do_res_check
-table_set_default t_req do_req_check
-table_set_default t_loop_req_txn do_loop_req_txn
-table_set_default t_resubmit_loop_req_txn do_resubmit_loop_req_txn
+table_set_default t_new_req do_req_check
+table_set_default t_loop_req do_loop_req
+table_set_default t_resubmit_loop_req do_resubmit_loop_req
+
+table_set_default t_new_res do_res_check
+table_set_default t_loop_res do_loop_res
+table_set_default t_loop_res_end do_loop_res_end
+table_set_default t_resubmit_loop_res do_resubmit_loop_res
+
 table_set_default t_abort do_abort
 
 table_add send_frame rewrite_mac 1 => 00:aa:bb:00:00:00

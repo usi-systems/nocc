@@ -43,32 +43,45 @@ header_type gotthard_hdr_t {
         bit<32> cl_id;
         bit<32> req_id;
         bit<8> status;
-        bit<8> txn_cnt;
+        bit<8> op_cnt;
     }
 }
 
-#define GOTTHARD_TXN_LEN 105
-header_type gotthard_txn_t {
+#define GOTTHARD_OP_LEN 105
+header_type gotthard_op_t {
     fields {
-        bit<8> txn_type;
+        bit<8> op_type;
         bit<32> key;
         bit<800> value;
     }
 }
 
-header_type txn_meta_t {
+header_type op_parse_meta_t {
     fields {
-        bit<8> txn_cnt;
+        bit<8> remaining_cnt;
     }
 }
 
-header_type req_txn_meta_t {
+header_type res_meta_t {
     fields {
         bit<1> loop_started;
         bit<8> remaining_cnt;
+        bit<8> index;
+    }
+}
+
+header_type req_meta_t {
+    fields {
+        bit<1> loop_started;
+        bit<8> remaining_cnt;
+        bit<8> index;
 
         bit<1> is_aborted;
-        bit<8> bad_txn_cnt;
+        bit<1> is_optimistic_aborted;
+
+        // tmp variables for doing swaps:
+        bit<32> tmp_ipv4_dstAddr;
+        bit<16> tmp_udp_dstPort;
     }
 }
 
