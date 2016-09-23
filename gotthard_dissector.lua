@@ -15,10 +15,8 @@ function gotthard_proto.dissector(buffer,pinfo,tree)
     subtree:add(buffer(9,1),"status: " .. buffer(9,1):uint())
     local op_cnt = buffer(10,1):uint()
     subtree:add(buffer(10,1),"op_cnt: " .. op_cnt)
-    print "start"
     for i = 0, op_cnt-1 do
         local op_type = buffer(11+(i*105),1):uint()
-        print(i .. " and " .. 11+(i*105))
         subtree:add(buffer(11+(i*105),1),"op_type: " .. opNames[op_type+1])
         subtree:add(buffer(11+(i*105)+1,4),"op_key: " .. buffer(11+(i*105)+1,4):uint())
         subtree:add(buffer(11+(i*105)+5,100),"op_val: " .. buffer(11+(i*105)+5,100))

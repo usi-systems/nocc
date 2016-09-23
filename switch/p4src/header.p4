@@ -72,9 +72,12 @@ header_type res_meta_t {
 
 header_type req_meta_t {
     fields {
-        bit<1> loop_started;
-        bit<8> remaining_cnt;
-        bit<8> index;
+        bit<1> in_loop1;
+        bit<8> loop1_remaining_cnt;
+        bit<1> has_read_op;
+        bit<1> has_cache_miss;
+        bit<1> has_read_before_op;
+        bit<1> has_invalid_read;
 
         bit<1> is_aborted;
         bit<1> is_optimistic_aborted;

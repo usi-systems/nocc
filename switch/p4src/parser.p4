@@ -75,6 +75,7 @@ parser parse_op {
         default: parse_op;
     }
 }
+
 parser parse_op2 {
     // never called, just used to include this header in the parse tree:
     extract(gotthard_op2[next]);

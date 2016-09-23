@@ -2,9 +2,11 @@ table_set_default send_frame _drop
 table_set_default forward _drop
 table_set_default ipv4_lpm _drop
 
-table_set_default t_new_req do_req_check
-table_set_default t_loop_req do_loop_req
-table_set_default t_resubmit_loop_req do_resubmit_loop_req
+table_set_default t_req_loop1_before do_req_loop1_before
+table_add t_req_loop1 do_req_loop1_r 0 =>
+table_add t_req_loop1 do_req_loop1_rb 2 =>
+table_set_default t_req_loop1 do_req_loop1_pop
+table_set_default t_req_loop1_resubmit do_req_loop1_resubmit
 
 table_set_default t_new_res do_res_check
 table_set_default t_loop_res do_loop_res

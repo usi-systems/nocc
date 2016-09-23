@@ -86,21 +86,70 @@ register resubmit_count_register {
 metadata req_meta_t req_meta;
 metadata res_meta_t res_meta;
 
-action do_req_check() {
+action do_req_loop1_before() {
     req_count_register[0] = req_count_register[0] + 1;
     req_count_register[gotthard_hdr.req_id] = req_count_register[0];
-    req_meta.remaining_cnt = gotthard_hdr.op_cnt;
-    req_meta.index = (bit<8>)0;
-    req_meta.loop_started = (bit<1>)1;
+    req_meta.loop1_remaining_cnt = gotthard_hdr.op_cnt;
+    req_meta.in_loop1 = (bit<1>)1;
+}
+table t_req_loop1_before { actions { do_req_loop1_before; } size: 1; }
+
+action do_req_loop1_pop() {
+    push(gotthard_op2, 1);
+    gotthard_op2[0].op_type = gotthard_op[0].op_type;
+    gotthard_op2[0].key = gotthard_op[0].key;
+    gotthard_op2[0].value = gotthard_op[0].value;
+    remove_header(gotthard_op[0]);
+    add_header(gotthard_op2[0]);
+    pop(gotthard_op, 1);
+    req_meta.loop1_remaining_cnt = req_meta.loop1_remaining_cnt - 1;
+    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 }
 
-table t_new_req {
+action do_req_loop1_r() {
+    req_meta.has_cache_miss = req_meta.has_cache_miss | (~(is_cached_register[gotthard_op[0].key]));
+    do_req_loop1_pop();
+}
+
+action do_req_loop1_rb() {
+    req_meta.has_cache_miss = req_meta.has_cache_miss | (~(is_cached_register[gotthard_op[0].key]));
+    //req_meta.has_invalid_read = req_meta.has_invalid_read | ((bit<1>)(value_register[gotthard_op[0].key] != gotthard_op[0].value));
+    do_req_loop1_pop();
+}
+
+table t_req_loop1 {
+    reads {
+        gotthard_op[0].op_type: exact;
+    }
     actions {
-        do_req_check;
-        _drop;
+        do_req_loop1_r;
+        do_req_loop1_rb;
+        do_req_loop1_pop;
+    }
+    size: 3;
+}
+
+field_list resubmit_req_FL { req_meta; }
+
+action do_req_loop1_resubmit() {
+    //resubmit_count_register[gotthard_hdr.req_id] = resubmit_count_register[gotthard_hdr.req_id] + 1;
+    resubmit(resubmit_req_FL);
+}
+table t_req_loop1_resubmit { actions { do_req_loop1_resubmit; } size: 1; }
+
+action do_abort() {
+    do_direction_swap(GOTTHARD_HDR_LEN + (gotthard_hdr.op_cnt*GOTTHARD_OP_LEN));
+}
+
+
+table t_abort {
+    actions {
+        do_abort;
+        _nop;
     }
     size: 1;
 }
+
 
 action do_res_check() {
     res_count_register[0] = res_count_register[0] + 1;
@@ -126,8 +175,10 @@ field_list resubmit_res_FL {
 action do_loop_res() {
     value_register[gotthard_op[0].key] =
         gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
-        gotthard_op[0].value : value_register[gotthard_op[0].key];
-
+            gotthard_op[0].value : value_register[gotthard_op[0].key];
+    is_cached_register[gotthard_op[0].key] =
+        gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            (bit<1>)1 : is_cached_register[gotthard_op[0].key];
 
     push(gotthard_op2, 1);
     gotthard_op2[0].op_type = gotthard_op[0].op_type;
@@ -137,6 +188,7 @@ action do_loop_res() {
     remove_header(gotthard_op[0]);
     add_header(gotthard_op2[0]);
     pop(gotthard_op, 1);
+    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 
     res_meta.remaining_cnt = res_meta.remaining_cnt - 1;
 }
@@ -173,52 +225,6 @@ table t_resubmit_loop_res {
     size: 1;
 }
 
-
-field_list resubmit_req_FL {
-    //standard_metadata;
-    req_meta;
-}
-
-action do_loop_req() {
-    op_count_register[gotthard_hdr.req_id] = gotthard_hdr.op_cnt;
-    req_meta.remaining_cnt = req_meta.remaining_cnt - 1;
-    loop_count_register[gotthard_hdr.req_id] = loop_count_register[gotthard_hdr.req_id] + (bit<32>)1;
-    remaining_register[gotthard_hdr.req_id] = req_meta.remaining_cnt;
-}
-
-table t_loop_req {
-    actions {
-        do_loop_req;
-    }
-    size: 1;
-}
-
-action do_resubmit_loop_req() {
-    //resubmit_count_register[gotthard_hdr.req_id] = resubmit_count_register[gotthard_hdr.req_id] + 1;
-    resubmit(resubmit_req_FL);
-}
-
-
-table t_resubmit_loop_req {
-    actions {
-        do_resubmit_loop_req;
-        _nop;
-    }
-    size: 1;
-}
-
-action do_abort() {
-    do_direction_swap(GOTTHARD_HDR_LEN + (gotthard_hdr.op_cnt*GOTTHARD_OP_LEN));
-}
-
-
-table t_abort {
-    actions {
-        do_abort;
-        _nop;
-    }
-    size: 1;
-}
 
 
 action _drop() {
@@ -285,18 +291,18 @@ control ingress {
     if (valid(ipv4)) {
         if (valid(gotthard_hdr)) {
             if (gotthard_hdr.msg_type == GOTTHARD_TYPE_REQ) {
-                //if (req_meta.loop_started == 0) {
-                //    apply(t_new_req);
-                //}
+                if (req_meta.in_loop1 == 0) {
+                    apply(t_req_loop1_before);
+                }
 
-                //if (req_meta.remaining_cnt > 0) {
-                //    apply(t_loop_req);
-                //    if (req_meta.remaining_cnt > 0) {
-                //        apply(t_resubmit_loop_req);
-                //    }
-                //}
+                if (req_meta.loop1_remaining_cnt > 0) {
+                    apply(t_req_loop1);
+                    if (req_meta.loop1_remaining_cnt > 0) {
+                        apply(t_req_loop1_resubmit);
+                    }
+                }
 
-                //if (req_meta.is_aborted == 1 and req_meta.remaining_cnt == 0) {
+                //if (req_meta.is_aborted == 1 and req_meta.loop1_remaining_cnt == 0) {
                 //    apply(t_abort);
                 //}
             }
@@ -318,7 +324,7 @@ control ingress {
 
         }
 
-        if(req_meta.remaining_cnt == 0 and res_meta.remaining_cnt == 0) {
+        if(req_meta.loop1_remaining_cnt == 0 and res_meta.remaining_cnt == 0) {
             apply(ipv4_lpm);
             apply(forward);
         }
