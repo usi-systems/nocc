@@ -94,7 +94,7 @@ def getExperimentStats(experiment_dir):
     summary['srv_recv'] = srv_stats['recv_count']
     summary['srv_abort'] = srv_stats['abort_count']
 
-    summary['pct_shortcut_abort'] = 0 if summary['total_aborts'] == 0 else float(summary['total_aborts'] - summary['srv_abort']) / summary['total_aborts']
+    summary['switch_abort_ratio'] = 0 if summary['total_aborts'] == 0 else float(summary['total_aborts'] - summary['srv_abort']) / summary['total_aborts']
 
     summary['first_start_time'] = min([st['start'] for st in cl_stats])
     summary['last_start_time'] = max([st['start'] for st in cl_stats])
@@ -110,7 +110,10 @@ def getExperimentStats(experiment_dir):
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
                 mode=conf['switch']['mode'],
                 req_count=conf['req_count'])
-    experiment_params['delta_ratio'] = float(experiment_params['store_D']) / experiment_params['client_d']
+    D, d = float(experiment_params['store_D']), float(experiment_params['client_d'])
+    #experiment_params['delta_ratio'] = D / d
+    #experiment_params['delta_diff_ratio'] = (D-d) / (D+d)
+    experiment_params['client_d_ratio'] = d / (D+d)
 
 
     return dict(summary, **experiment_params)

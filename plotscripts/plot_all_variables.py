@@ -115,5 +115,5 @@ if __name__ == '__main__':
             label_field = args.label,
             label_order = _tolist(args.label_order) if args.label_order else None,
             independent_vars = _tolist(args.ind_vars),
-            plot_independent_vars=_tolist(args.plot_ind_vars),
+            plot_independent_vars=_tolist(args.plot_ind_vars) if args.plot_ind_vars else None,
             dependent_vars = _tolist(args.dep_vars))

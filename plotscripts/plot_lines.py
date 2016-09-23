@@ -9,6 +9,14 @@ import numpy as np
 import sys
 import argparse
 import itertools
+import math
+
+def _magnitude(x):
+    return int(math.floor(math.log10(x)))
+
+def _should_use_log(vals):
+    magnitudes = set(map(_magnitude, vals))
+    return len(magnitudes) > 1 and len([v for v in vals if v < 1]) > 2
 
 
 label_style_hist = {} # keep history of styles for labels
@@ -31,21 +39,31 @@ def plot_lines(data, xlabel=None, ylabel=None, title=None, label_order=None):
     local_label_order += unseen_labels
 
     handles = []
+    all_x, all_y = [], []
     for label in [l for l in local_label_order if l in labels]:
         if not label in label_style_hist:
             label_style_hist[label] = dict(line=linestyles.next(), marker=markers.next())
 
         points = [r[1:4] for r in data if r[0] == label]
         x, y, yerr = zip(*points)
+        all_x += x
+        all_y += y
         handles += ax.errorbar(x, y, yerr=yerr, label=label,
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
 
     if not title is None: ax.set_title(title)
     if not xlabel is None: ax.set_xlabel(xlabel)
     if not ylabel is None: ax.set_ylabel(ylabel)
+    y1, y2, x1, x2 = min(all_y), max(all_y), min(all_x), max(all_x)
+    ax.set_ylim([y1 - (y1*0.1), y2 + (y2*0.1)])
+    ax.set_xlim([x1 - (x1*0.1), x2 + (x2*0.1)])
     ax.grid()
+    #if _should_use_log(all_x):
+    #    ax.set_xscale('symlog', linthreshx=1)
     ax.margins(x=0.1)
     handles, labels = ax.get_legend_handles_labels()
+    # remove the errorbars
+    handles = [h[0] for h in handles]
     #ax.legend(loc='upper left', handles=handles, labels=labels)
     ax.legend(loc='best', fancybox=True, framealpha=0.5, handles=handles, labels=labels)
     return fig
