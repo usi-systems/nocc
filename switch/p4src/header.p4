@@ -34,7 +34,7 @@ header_type udp_t {
     }
 }
 
-#define GOTTHARD_HDR_LEN 88
+#define GOTTHARD_HDR_LEN 11
 header_type gotthard_hdr_t {
     fields {
         bit<1> msg_type;
@@ -72,15 +72,15 @@ header_type res_meta_t {
 
 header_type req_meta_t {
     fields {
-        bit<1> in_loop1;
+        bit<1> loop1_started;
         bit<8> loop1_remaining_cnt;
-        bit<1> has_read_op;
+        bit<1> is_r;
+        bit<1> is_rb;
         bit<1> has_cache_miss;
-        bit<1> has_read_before_op;
         bit<1> has_invalid_read;
 
-        bit<1> is_aborted;
-        bit<1> is_optimistic_aborted;
+        bit<1> loop2_started;
+        bit<8> loop2_remaining_cnt;
 
         // tmp variables for doing swaps:
         bit<32> tmp_ipv4_dstAddr;

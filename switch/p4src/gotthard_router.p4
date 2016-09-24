@@ -37,8 +37,10 @@ action do_direction_swap (in bit<8> udp_payload_size) { // return the packet to 
 
     udp.dstPort = udp.srcPort;
     udp.srcPort = req_meta.tmp_udp_dstPort;
-    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
     udp.length_ = UDP_HDR_LEN + udp_payload_size;
+
+    gotthard_hdr.from_switch = (bit<1>)1;
+    gotthard_hdr.msg_type = GOTTHARD_TYPE_RES;
 }
 
 register is_cached_register {
@@ -59,30 +61,7 @@ register res_count_register {
     width: 32;
     instance_count: MAX_REG_INST;
 }
-register op_count_register {
-    width: 32;
-    instance_count: MAX_REG_INST;
-}
 
-register loop_count_register {
-    width: 32;
-    instance_count: MAX_REG_INST;
-}
-
-register remaining_register {
-    width: 8;
-    instance_count: MAX_REG_INST;
-}
-
-register req_check_count_register {
-    width: 32;
-    instance_count: MAX_REG_INST;
-}
-
-register resubmit_count_register {
-    width: 32;
-    instance_count: MAX_REG_INST;
-}
 metadata req_meta_t req_meta;
 metadata res_meta_t res_meta;
 
@@ -90,11 +69,11 @@ action do_req_loop1_before() {
     req_count_register[0] = req_count_register[0] + 1;
     req_count_register[gotthard_hdr.req_id] = req_count_register[0];
     req_meta.loop1_remaining_cnt = gotthard_hdr.op_cnt;
-    req_meta.in_loop1 = (bit<1>)1;
+    req_meta.loop1_started = (bit<1>)1;
 }
 table t_req_loop1_before { actions { do_req_loop1_before; } size: 1; }
 
-action do_req_loop1_pop() {
+action do_req_loop1_pushpop() {
     push(gotthard_op2, 1);
     gotthard_op2[0].op_type = gotthard_op[0].op_type;
     gotthard_op2[0].key = gotthard_op[0].key;
@@ -103,18 +82,21 @@ action do_req_loop1_pop() {
     add_header(gotthard_op2[0]);
     pop(gotthard_op, 1);
     req_meta.loop1_remaining_cnt = req_meta.loop1_remaining_cnt - 1;
-    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
+    req_meta.loop2_remaining_cnt = req_meta.loop1_remaining_cnt > 0 ? (bit<8>) 0 : gotthard_hdr.op_cnt;
 }
 
 action do_req_loop1_r() {
+    req_meta.is_r = (bit<1>)1;
     req_meta.has_cache_miss = req_meta.has_cache_miss | (~(is_cached_register[gotthard_op[0].key]));
-    do_req_loop1_pop();
+    do_req_loop1_pushpop();
 }
 
 action do_req_loop1_rb() {
+    req_meta.is_rb = (bit<1>)1;
     req_meta.has_cache_miss = req_meta.has_cache_miss | (~(is_cached_register[gotthard_op[0].key]));
-    //req_meta.has_invalid_read = req_meta.has_invalid_read | ((bit<1>)(value_register[gotthard_op[0].key] != gotthard_op[0].value));
-    do_req_loop1_pop();
+    req_meta.has_invalid_read = req_meta.has_invalid_read |
+        (value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
+    do_req_loop1_pushpop();
 }
 
 table t_req_loop1 {
@@ -124,7 +106,38 @@ table t_req_loop1 {
     actions {
         do_req_loop1_r;
         do_req_loop1_rb;
-        do_req_loop1_pop;
+        do_req_loop1_pushpop;
+    }
+    size: 3;
+}
+
+action do_req_loop2_pop() {
+    req_meta.loop2_started = (bit<1>)1;
+    remove_header(gotthard_op2[0]);
+    pop(gotthard_op2, 1);
+    gotthard_hdr.op_cnt = gotthard_hdr.op_cnt - 1;
+    req_meta.loop2_remaining_cnt = req_meta.loop2_remaining_cnt - 1;
+    req_meta.loop1_started = (bit<1>)1;
+}
+action do_req_loop2_update() {
+    push(gotthard_op, 1);
+    gotthard_op[0].op_type = GOTTHARD_OP_VALUE;
+    gotthard_op[0].key = gotthard_op2[0].key;
+    gotthard_op[0].value = value_register[gotthard_op2[0].key];
+    add_header(gotthard_op[0]);
+    do_req_loop2_pop();
+    // We have to +1 because loop2_pop() decrements it by default
+    gotthard_hdr.op_cnt = gotthard_hdr.op_cnt + 1;
+}
+
+
+table t_req_loop2 {
+    reads {
+        gotthard_op2[0].op_type: exact;
+    }
+    actions {
+        do_req_loop2_update;
+        do_req_loop2_pop;
     }
     size: 3;
 }
@@ -132,22 +145,35 @@ table t_req_loop1 {
 field_list resubmit_req_FL { req_meta; }
 
 action do_req_loop1_resubmit() {
-    //resubmit_count_register[gotthard_hdr.req_id] = resubmit_count_register[gotthard_hdr.req_id] + 1;
     resubmit(resubmit_req_FL);
 }
 table t_req_loop1_resubmit { actions { do_req_loop1_resubmit; } size: 1; }
 
-action do_abort() {
+action do_req_loop2_resubmit() {
+    resubmit(resubmit_req_FL);
+}
+table t_req_loop2_resubmit { actions { do_req_loop2_resubmit; } size: 1; }
+
+action do_reply_abort() {
+    gotthard_hdr.status = GOTTHARD_STATUS_ABORT;
+    do_direction_swap(GOTTHARD_HDR_LEN + (gotthard_hdr.op_cnt*GOTTHARD_OP_LEN));
+}
+
+action do_reply_ok() {
+    gotthard_hdr.status = GOTTHARD_STATUS_OK;
     do_direction_swap(GOTTHARD_HDR_LEN + (gotthard_hdr.op_cnt*GOTTHARD_OP_LEN));
 }
 
 
-table t_abort {
-    actions {
-        do_abort;
-        _nop;
+table t_reply_client {
+    reads {
+        req_meta.has_invalid_read: exact;
     }
-    size: 1;
+    actions {
+        do_reply_abort;
+        do_reply_ok;
+    }
+    size: 2;
 }
 
 
@@ -157,7 +183,6 @@ action do_res_check() {
     res_meta.remaining_cnt = gotthard_hdr.op_cnt;
     res_meta.index = (bit<8>)0;
     res_meta.loop_started = (bit<1>)1;
-    loop_count_register[gotthard_hdr.req_id] = (bit<32>)0;
 }
 
 table t_new_res {
@@ -188,7 +213,6 @@ action do_loop_res() {
     remove_header(gotthard_op[0]);
     add_header(gotthard_op2[0]);
     pop(gotthard_op, 1);
-    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 
     res_meta.remaining_cnt = res_meta.remaining_cnt - 1;
 }
@@ -212,18 +236,9 @@ table t_loop_res_end {
 }
 
 action do_resubmit_loop_res() {
-    resubmit_count_register[gotthard_hdr.req_id] = resubmit_count_register[gotthard_hdr.req_id] + 1;
     resubmit(resubmit_res_FL);
 }
-
-
-table t_resubmit_loop_res {
-    actions {
-        do_resubmit_loop_res;
-        _nop;
-    }
-    size: 1;
-}
+table t_resubmit_loop_res { actions { do_resubmit_loop_res; } size: 1; }
 
 
 
@@ -259,6 +274,7 @@ table ipv4_lpm {
 
 action set_dmac(in bit<48> dmac) {
     ethernet.dstAddr = dmac;
+    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 }
 
 table forward {
@@ -291,7 +307,7 @@ control ingress {
     if (valid(ipv4)) {
         if (valid(gotthard_hdr)) {
             if (gotthard_hdr.msg_type == GOTTHARD_TYPE_REQ) {
-                if (req_meta.in_loop1 == 0) {
+                if (req_meta.loop1_started == 0) {
                     apply(t_req_loop1_before);
                 }
 
@@ -302,9 +318,17 @@ control ingress {
                     }
                 }
 
-                //if (req_meta.is_aborted == 1 and req_meta.loop1_remaining_cnt == 0) {
-                //    apply(t_abort);
-                //}
+                if (req_meta.loop2_remaining_cnt > 0 and (
+                    (req_meta.is_r == 1 and req_meta.has_cache_miss == 0) or
+                    (req_meta.is_rb == 1 and req_meta.has_invalid_read == 1 and req_meta.has_cache_miss == 0))) {
+                    apply(t_req_loop2);
+                    if (req_meta.loop2_remaining_cnt > 0) {
+                        apply(t_req_loop2_resubmit);
+                    }
+                    else {
+                        apply(t_reply_client);
+                    }
+                }
             }
             else {
                 if (res_meta.loop_started == 0) {
@@ -324,7 +348,9 @@ control ingress {
 
         }
 
-        if(req_meta.loop1_remaining_cnt == 0 and res_meta.remaining_cnt == 0) {
+        if(req_meta.loop1_remaining_cnt == 0 and 
+            (req_meta.loop2_remaining_cnt == 0 or req_meta.loop2_started == 0) and
+            res_meta.remaining_cnt == 0) {
             apply(ipv4_lpm);
             apply(forward);
         }
