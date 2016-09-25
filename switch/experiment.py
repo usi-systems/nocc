@@ -174,9 +174,9 @@ def main():
 
     with open(args.entries, 'r') as f:
         p4_t_entries = f.read()
-    if p4_t_entries[-1] != "\n": p4_t_entries += "\n"
     # Remove empty lines
     p4_t_entries = '\n'.join([e for e in p4_t_entries.split('\n') if e != ''])
+    if p4_t_entries[-1] != "\n": p4_t_entries += "\n"
 
     if conf['switch']['mode'] == 'forward':
         p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
