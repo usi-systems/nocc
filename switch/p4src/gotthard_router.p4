@@ -8,13 +8,13 @@
 #define GOTTHARD_STATUS_OK                  0
 #define GOTTHARD_STATUS_ABORT               1
 #define GOTTHARD_STATUS_OPTIMISTIC_ABORT    2
+#define GOTTHARD_STATUS_BADREQ              3
 
-#define GOTTHARD_OP_READ    0
-#define GOTTHARD_OP_WRITE   1
-#define GOTTHARD_OP_VALUE   2
-#define GOTTHARD_OP_UPDATE  3
-
-#define GOTTHARD_MAX_OP 10
+#define GOTTHARD_OP_NOP     0
+#define GOTTHARD_OP_READ    1
+#define GOTTHARD_OP_WRITE   2
+#define GOTTHARD_OP_VALUE   3
+#define GOTTHARD_OP_UPDATE  4
 
 #include "header.p4"
 #include "parser.p4"
@@ -38,6 +38,7 @@ action do_direction_swap (in bit<8> udp_payload_size) { // return the packet to 
     udp.dstPort = udp.srcPort;
     udp.srcPort = req_meta.tmp_udp_dstPort;
     udp.length_ = UDP_HDR_LEN + udp_payload_size;
+    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 
     gotthard_hdr.from_switch = (bit<1>)1;
     gotthard_hdr.msg_type = GOTTHARD_TYPE_RES;
@@ -53,118 +54,127 @@ register value_register {
 }
 
 
-register req_count_register {
-    width: 32;
-    instance_count: MAX_REG_INST;
-}
-register res_count_register {
-    width: 32;
-    instance_count: MAX_REG_INST;
-}
-
 metadata req_meta_t req_meta;
-metadata res_meta_t res_meta;
 
-action do_req_loop1_before() {
-    req_count_register[0] = req_count_register[0] + 1;
-    req_count_register[gotthard_hdr.req_id] = req_count_register[0];
-    req_meta.loop1_remaining_cnt = gotthard_hdr.op_cnt;
-    req_meta.loop1_started = (bit<1>)1;
-}
-table t_req_loop1_before { actions { do_req_loop1_before; } size: 1; }
-
-action do_req_loop1_pushpop() {
-    push(gotthard_op2, 1);
-    gotthard_op2[0].op_type = gotthard_op[0].op_type;
-    gotthard_op2[0].key = gotthard_op[0].key;
-    gotthard_op2[0].value = gotthard_op[0].value;
-    remove_header(gotthard_op[0]);
-    add_header(gotthard_op2[0]);
-    pop(gotthard_op, 1);
-    req_meta.loop1_remaining_cnt = req_meta.loop1_remaining_cnt - 1;
-    req_meta.loop2_remaining_cnt = req_meta.loop1_remaining_cnt > 0 ? (bit<8>) 0 : gotthard_hdr.op_cnt;
-}
-
-action do_req_loop1_r() {
-    req_meta.is_r = (bit<1>)1;
-    req_meta.has_cache_miss = req_meta.has_cache_miss | (~(is_cached_register[gotthard_op[0].key]));
-    do_req_loop1_pushpop();
-}
-
-action do_req_loop1_rb() {
-    req_meta.is_rb = (bit<1>)1;
-    req_meta.has_cache_miss = req_meta.has_cache_miss | (~(is_cached_register[gotthard_op[0].key]));
+action do_check_op1() {
+    req_meta.is_r = req_meta.is_r | (gotthard_op[0].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_rb = req_meta.is_rb | (gotthard_op[0].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[0].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[0].key] : 0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[0].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[0].key] : 0);
     req_meta.has_invalid_read = req_meta.has_invalid_read |
-        (value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
-    do_req_loop1_pushpop();
+        (gotthard_op[0].op_type == GOTTHARD_OP_VALUE and
+            value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
 }
 
-table t_req_loop1 {
+action do_check_op2() {
+    do_check_op1();
+    req_meta.is_r = req_meta.is_r | (gotthard_op[1].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_rb = req_meta.is_rb | (gotthard_op[1].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[1].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[1].key] : 0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[1].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[1].key] : 0);
+    req_meta.has_invalid_read = req_meta.has_invalid_read |
+        (gotthard_op[1].op_type == GOTTHARD_OP_VALUE and
+            value_register[gotthard_op[1].key] != gotthard_op[1].value ? (bit<1>) 1 : 0);
+}
+
+action do_check_op3() {
+    do_check_op2();
+    req_meta.is_r = req_meta.is_r | (gotthard_op[2].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_rb = req_meta.is_rb | (gotthard_op[2].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[2].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[2].key] : 0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[2].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[2].key] : 0);
+    req_meta.has_invalid_read = req_meta.has_invalid_read |
+        (gotthard_op[2].op_type == GOTTHARD_OP_VALUE and
+            value_register[gotthard_op[2].key] != gotthard_op[2].value ? (bit<1>) 1 : 0);
+}
+
+action do_check_op4() {
+    do_check_op3();
+    req_meta.is_r = req_meta.is_r | (gotthard_op[3].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_rb = req_meta.is_rb | (gotthard_op[3].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[3].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[3].key] : 0);
+    req_meta.has_cache_miss = req_meta.has_cache_miss |
+        (gotthard_op[3].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[3].key] : 0);
+    req_meta.has_invalid_read = req_meta.has_invalid_read |
+        (gotthard_op[3].op_type == GOTTHARD_OP_VALUE and
+            value_register[gotthard_op[3].key] != gotthard_op[3].value ? (bit<1>) 1 : 0);
+}
+
+table t_req_pass1 {
     reads {
-        gotthard_op[0].op_type: exact;
+        gotthard_hdr.op_cnt: exact;
     }
     actions {
-        do_req_loop1_r;
-        do_req_loop1_rb;
-        do_req_loop1_pushpop;
+        _nop;
+        do_check_op1;
+        do_check_op2;
+        do_check_op3;
+        do_check_op4;
     }
-    size: 3;
+    size: 32;
 }
 
-action do_req_loop2_pop() {
-    req_meta.loop2_started = (bit<1>)1;
-    remove_header(gotthard_op2[0]);
-    pop(gotthard_op2, 1);
-    gotthard_hdr.op_cnt = gotthard_hdr.op_cnt - 1;
-    req_meta.loop2_remaining_cnt = req_meta.loop2_remaining_cnt - 1;
-    req_meta.loop1_started = (bit<1>)1;
-}
-action do_req_loop2_update() {
-    push(gotthard_op, 1);
-    gotthard_op[0].op_type = GOTTHARD_OP_VALUE;
-    gotthard_op[0].key = gotthard_op2[0].key;
-    gotthard_op[0].value = value_register[gotthard_op2[0].key];
-    add_header(gotthard_op[0]);
-    do_req_loop2_pop();
-    // We have to +1 because loop2_pop() decrements it by default
-    gotthard_hdr.op_cnt = gotthard_hdr.op_cnt + 1;
+action do_req_update1() {
+    gotthard_op[0].op_type = gotthard_op[0].op_type == GOTTHARD_OP_READ or gotthard_op[0].op_type == GOTTHARD_OP_VALUE ?
+        (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
+    gotthard_op[0].key = gotthard_op[0].key;
+    gotthard_op[0].value = value_register[gotthard_op[0].key];
 }
 
+action do_req_update2() {
+    do_req_update1();
+    gotthard_op[1].op_type = gotthard_op[1].op_type == GOTTHARD_OP_READ or gotthard_op[1].op_type == GOTTHARD_OP_VALUE ?
+        (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
+    gotthard_op[1].key = gotthard_op[1].key;
+    gotthard_op[1].value = value_register[gotthard_op[1].key];
+}
 
-table t_req_loop2 {
+action do_req_update3() {
+    do_req_update2();
+    gotthard_op[2].op_type = gotthard_op[2].op_type == GOTTHARD_OP_READ or gotthard_op[2].op_type == GOTTHARD_OP_VALUE ?
+        (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
+    gotthard_op[2].key = gotthard_op[2].key;
+    gotthard_op[2].value = value_register[gotthard_op[2].key];
+}
+
+action do_req_update4() {
+    do_req_update3();
+    gotthard_op[3].op_type = gotthard_op[3].op_type == GOTTHARD_OP_READ or gotthard_op[3].op_type == GOTTHARD_OP_VALUE ?
+        (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
+    gotthard_op[3].key = gotthard_op[3].key;
+    gotthard_op[3].value = value_register[gotthard_op[3].key];
+}
+
+table t_req_update {
     reads {
-        gotthard_op2[0].op_type: exact;
+        gotthard_hdr.op_cnt: exact;
     }
     actions {
-        do_req_loop2_update;
-        do_req_loop2_pop;
+        _nop;
+        do_req_update1;
+        do_req_update2;
+        do_req_update3;
+        do_req_update4;
     }
-    size: 3;
+    size: 32;
 }
 
-field_list resubmit_req_FL { req_meta; }
-
-action do_req_loop1_resubmit() {
-    resubmit(resubmit_req_FL);
-}
-table t_req_loop1_resubmit { actions { do_req_loop1_resubmit; } size: 1; }
-
-action do_req_loop2_resubmit() {
-    resubmit(resubmit_req_FL);
-}
-table t_req_loop2_resubmit { actions { do_req_loop2_resubmit; } size: 1; }
 
 action do_reply_abort() {
     gotthard_hdr.status = GOTTHARD_STATUS_ABORT;
     do_direction_swap(GOTTHARD_HDR_LEN + (gotthard_hdr.op_cnt*GOTTHARD_OP_LEN));
 }
-
 action do_reply_ok() {
     gotthard_hdr.status = GOTTHARD_STATUS_OK;
     do_direction_swap(GOTTHARD_HDR_LEN + (gotthard_hdr.op_cnt*GOTTHARD_OP_LEN));
 }
-
-
 table t_reply_client {
     reads {
         req_meta.has_invalid_read: exact;
@@ -177,68 +187,58 @@ table t_reply_client {
 }
 
 
-action do_res_check() {
-    res_count_register[0] = res_count_register[0] + 1;
-    res_count_register[gotthard_hdr.req_id] = res_count_register[gotthard_hdr.req_id] + 1;
-    res_meta.remaining_cnt = gotthard_hdr.op_cnt;
-    res_meta.index = (bit<8>)0;
-    res_meta.loop_started = (bit<1>)1;
-}
-
-table t_new_res {
-    actions {
-        do_res_check;
-        _drop;
-    }
-    size: 1;
-}
-
-field_list resubmit_res_FL {
-    res_meta;
-}
-
-action do_loop_res() {
+action do_store_update1() {
     value_register[gotthard_op[0].key] =
         gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
             gotthard_op[0].value : value_register[gotthard_op[0].key];
     is_cached_register[gotthard_op[0].key] =
         gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
             (bit<1>)1 : is_cached_register[gotthard_op[0].key];
-
-    push(gotthard_op2, 1);
-    gotthard_op2[0].op_type = gotthard_op[0].op_type;
-    gotthard_op2[0].key = gotthard_op[0].key;
-    gotthard_op2[0].value = gotthard_op[0].value;
-
-    remove_header(gotthard_op[0]);
-    add_header(gotthard_op2[0]);
-    pop(gotthard_op, 1);
-
-    res_meta.remaining_cnt = res_meta.remaining_cnt - 1;
 }
 
-table t_loop_res {
-    actions {
-        do_loop_res;
+action do_store_update2() {
+    do_store_update1();
+    value_register[gotthard_op[1].key] =
+        gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            gotthard_op[1].value : value_register[gotthard_op[1].key];
+    is_cached_register[gotthard_op[1].key] =
+        gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            (bit<1>)1 : is_cached_register[gotthard_op[1].key];
+}
+
+action do_store_update3() {
+    do_store_update2();
+    value_register[gotthard_op[2].key] =
+        gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            gotthard_op[2].value : value_register[gotthard_op[2].key];
+    is_cached_register[gotthard_op[2].key] =
+        gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            (bit<1>)1 : is_cached_register[gotthard_op[2].key];
+}
+
+action do_store_update4() {
+    do_store_update3();
+    value_register[gotthard_op[3].key] =
+        gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            gotthard_op[3].value : value_register[gotthard_op[3].key];
+    is_cached_register[gotthard_op[3].key] =
+        gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+            (bit<1>)1 : is_cached_register[gotthard_op[3].key];
+}
+
+table t_store_update {
+    reads {
+        gotthard_hdr.op_cnt: exact;
     }
-    size: 1;
-}
-
-action do_loop_res_end() {
-    //parse_meta.new_header = (bit<1>)1;
-}
-
-table t_loop_res_end {
     actions {
-        do_loop_res_end;
+        _nop;
+        do_store_update1;
+        do_store_update2;
+        do_store_update3;
+        do_store_update4;
     }
-    size: 1;
+    size: 32;
 }
-
-action do_resubmit_loop_res() {
-    resubmit(resubmit_res_FL);
-}
-table t_resubmit_loop_res { actions { do_resubmit_loop_res; } size: 1; }
 
 
 
@@ -274,7 +274,6 @@ table ipv4_lpm {
 
 action set_dmac(in bit<48> dmac) {
     ethernet.dstAddr = dmac;
-    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 }
 
 table forward {
@@ -307,53 +306,20 @@ control ingress {
     if (valid(ipv4)) {
         if (valid(gotthard_hdr)) {
             if (gotthard_hdr.msg_type == GOTTHARD_TYPE_REQ) {
-                if (req_meta.loop1_started == 0) {
-                    apply(t_req_loop1_before);
-                }
-
-                if (req_meta.loop1_remaining_cnt > 0) {
-                    apply(t_req_loop1);
-                    if (req_meta.loop1_remaining_cnt > 0) {
-                        apply(t_req_loop1_resubmit);
-                    }
-                }
-
-                if (req_meta.loop2_remaining_cnt > 0 and (
-                    (req_meta.is_r == 1 and req_meta.has_cache_miss == 0) or
-                    (req_meta.is_rb == 1 and req_meta.has_invalid_read == 1 and req_meta.has_cache_miss == 0))) {
-                    apply(t_req_loop2);
-                    if (req_meta.loop2_remaining_cnt > 0) {
-                        apply(t_req_loop2_resubmit);
-                    }
-                    else {
-                        apply(t_reply_client);
-                    }
+                apply(t_req_pass1);
+                if ((req_meta.is_r == 1 and req_meta.has_cache_miss == 0) or
+                    (req_meta.is_rb == 1 and req_meta.has_invalid_read == 1 and req_meta.has_cache_miss == 0)) {
+                    apply(t_req_update);
+                    apply(t_reply_client);
                 }
             }
             else {
-                if (res_meta.loop_started == 0) {
-                    apply(t_new_res);
-                }
-                if (res_meta.remaining_cnt > 0) {
-                    apply(t_loop_res);
-                    if (res_meta.remaining_cnt > 0) {
-                        apply(t_resubmit_loop_res);
-                    }
-                    else {
-                        apply(t_loop_res_end);
-                    }
-                }
-
+                apply(t_store_update);
             }
-
         }
 
-        if(req_meta.loop1_remaining_cnt == 0 and 
-            (req_meta.loop2_remaining_cnt == 0 or req_meta.loop2_started == 0) and
-            res_meta.remaining_cnt == 0) {
-            apply(ipv4_lpm);
-            apply(forward);
-        }
+        apply(ipv4_lpm);
+        apply(forward);
     }
 }
 

@@ -2,24 +2,26 @@ table_set_default send_frame _drop
 table_set_default forward _drop
 table_set_default ipv4_lpm _drop
 
-table_set_default t_req_loop1_before do_req_loop1_before
-table_add t_req_loop1 do_req_loop1_r 0 =>
-table_add t_req_loop1 do_req_loop1_rb 2 =>
-table_set_default t_req_loop1 do_req_loop1_pushpop
-table_set_default t_req_loop1_resubmit do_req_loop1_resubmit
+table_set_default t_store_update _nop
+table_add t_store_update do_store_update1 1 =>
+table_add t_store_update do_store_update2 2 =>
+table_add t_store_update do_store_update3 3 =>
+table_add t_store_update do_store_update4 4 =>
 
-table_add t_req_loop2 do_req_loop2_update 0 =>
-table_add t_req_loop2 do_req_loop2_update 2 =>
-table_set_default t_req_loop2 do_req_loop2_pop
-table_set_default t_req_loop2_resubmit do_req_loop2_resubmit
-table_add t_reply_client do_reply_abort 1 =>
+table_set_default t_req_pass1 _nop
+table_add t_req_pass1 do_check_op1 1 =>
+table_add t_req_pass1 do_check_op2 2 =>
+table_add t_req_pass1 do_check_op3 3 =>
+table_add t_req_pass1 do_check_op4 4 =>
+
+table_set_default t_req_update _nop
+table_add t_req_update do_req_update1 1 =>
+table_add t_req_update do_req_update2 2 =>
+table_add t_req_update do_req_update3 3 =>
+table_add t_req_update do_req_update4 4 =>
+
 table_add t_reply_client do_reply_ok 0 =>
-
-table_set_default t_new_res do_res_check
-table_set_default t_loop_res do_loop_res
-table_set_default t_loop_res_end do_loop_res_end
-table_set_default t_resubmit_loop_res do_resubmit_loop_res
-
+table_add t_reply_client do_reply_abort 1 =>
 
 table_add send_frame rewrite_mac 1 => 00:aa:bb:00:00:00
 table_add send_frame rewrite_mac 2 => 00:aa:bb:00:00:01

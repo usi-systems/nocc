@@ -62,25 +62,12 @@ header_type op_parse_meta_t {
     }
 }
 
-header_type res_meta_t {
-    fields {
-        bit<1> loop_started;
-        bit<8> remaining_cnt;
-        bit<8> index;
-    }
-}
-
 header_type req_meta_t {
     fields {
-        bit<1> loop1_started;
-        bit<8> loop1_remaining_cnt;
         bit<1> is_r;
         bit<1> is_rb;
         bit<1> has_cache_miss;
         bit<1> has_invalid_read;
-
-        bit<1> loop2_started;
-        bit<8> loop2_remaining_cnt;
 
         // tmp variables for doing swaps:
         bit<32> tmp_ipv4_dstAddr;

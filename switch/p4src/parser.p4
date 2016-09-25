@@ -61,9 +61,9 @@ parser parse_udp {
     return parse_gotthard;
 }
 
+#define GOTTHARD_MAX_OP 10
 header gotthard_hdr_t gotthard_hdr;
 header gotthard_op_t gotthard_op[GOTTHARD_MAX_OP];
-header gotthard_op_t gotthard_op2[GOTTHARD_MAX_OP];
 
 header op_parse_meta_t parse_meta;
 
@@ -76,18 +76,11 @@ parser parse_op {
     }
 }
 
-parser parse_op2 {
-    // never called, just used to include this header in the parse tree:
-    extract(gotthard_op2[next]);
-    return ingress;
-}
-
 parser parse_gotthard {
     extract(gotthard_hdr);
     set_metadata(parse_meta.remaining_cnt, gotthard_hdr.op_cnt);
     return select(parse_meta.remaining_cnt) {
         0: ingress;
-        99999: parse_op2; // should never happen
         default: parse_op;
     }
 }
