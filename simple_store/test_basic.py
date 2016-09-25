@@ -111,20 +111,21 @@ with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl
     res = cl.req([r(1, 'a'), r(2, 'wrong'), w(3, 'x')])
     assert(res.status == STATUS_ABORT)
     assert(len(res.ops) > 0)
-    assert(res.ops[0].key == 2)
-    assert(res.ops[0].type == TXN_VALUE) # should contain correct value
-    assert(res.ops[0].value.rstrip('\0') == 'b')
+    assert(res.op(k=2).type == TXN_VALUE) # should contain correct value
+    assert(res.op(k=2).value.rstrip('\0') == 'b')
 
     # Try a bad RW with multiple bad reads
     res = cl.req([r(1, 'wrong'), r(2, 'wrong'), w(3, 'x')])
     assert(res.status == STATUS_ABORT)
     assert(len(res.ops) > 1)
-    assert(res.op(k=1).key == 1)
     assert(res.op(k=1).type == TXN_VALUE) # should contain correct value
     assert(res.op(k=1).value.rstrip('\0') == 'a')
-    assert(res.op(k=2).key == 2)
     assert(res.op(k=2).type == TXN_VALUE) # should contain correct value
     assert(res.op(k=2).value.rstrip('\0') == 'b')
+
+    # Send some null operations
+    res = cl.req([TxnOp(t=TXN_NOP, key=0), TxnOp(t=TXN_NOP, key=0)])
+    assert(res.status == STATUS_BADREQ)
 
     # Cleanup: write null to the keys
     for i in range(5):

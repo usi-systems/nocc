@@ -11,17 +11,19 @@ TYPE_RES = 1
 STATUS_OK = 0
 STATUS_ABORT = 1
 STATUS_OPTIMISTIC_ABORT = 2
+STATUS_BADREQ = 3
 
-TXN_READ    = 0 # request: I would like to get the value of this obj
-TXN_WRITE   = 1 # request: write this value to the object
-TXN_VALUE   = 2 # fact: this is what (I think) the value is
-TXN_UPDATED = 3 # response: the object was just updated to this value
+TXN_NOP     = 0
+TXN_READ    = 1 # request: I would like to get the value of this obj
+TXN_WRITE   = 2 # request: write this value to the object
+TXN_VALUE   = 3 # fact: this is what (I think) the value is
+TXN_UPDATED = 4 # response: the object was just updated to this value
 
-txn_op_type_to_string = {TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
+txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
 VALUE_SIZE = 100
 
-status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT']
+status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
 
 class BitFlags:
 
@@ -60,7 +62,7 @@ class TxnOp:
         if binstr is not None:
             self.unpack(binstr)
         else:
-            assert(t in [TXN_VALUE, TXN_READ, TXN_WRITE, TXN_UPDATED])
+            assert(t in [TXN_NOP, TXN_VALUE, TXN_READ, TXN_WRITE, TXN_UPDATED])
             assert(type(key) is int)
             assert(type(value) is str)
             self.type, self.key, self.value = t, key, value
@@ -115,6 +117,8 @@ class TxnMsg:
         self.flags.unpack(flags_value)
         ops_binstr = binstr[TXNHDR_SIZE:]
         self.ops = [TxnOp(binstr=ops_binstr[i:i+TXNOP_SIZE]) for i in xrange(0, op_cnt*TXNOP_SIZE, TXNOP_SIZE)]
+        # Remove NOP ops:
+        self.ops = [o for o in self.ops if o.type != TXN_NOP]
 
     def pack(self):
         ops_binstr = ''.join([op.pack() for op in self.ops])
@@ -169,7 +173,8 @@ class Store:
 
         # Otherwise, this was simply a read TXN
         r_ops = [o for o in ops if o.type == TXN_READ]
-        assert(len(r_ops))
+        if len(r_ops) < 1:
+            return (STATUS_BADREQ, [])
         return (STATUS_OK, [self._get(o=o) for o in r_ops])
 
     def __str__(self):
