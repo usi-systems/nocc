@@ -14,11 +14,17 @@ table_add t_req_pass1 do_check_op2 2 =>
 table_add t_req_pass1 do_check_op3 3 =>
 table_add t_req_pass1 do_check_op4 4 =>
 
-table_set_default t_req_update _nop
-table_add t_req_update do_req_update1 1 =>
-table_add t_req_update do_req_update2 2 =>
-table_add t_req_update do_req_update3 3 =>
-table_add t_req_update do_req_update4 4 =>
+table_set_default t_req_fix _nop
+table_add t_req_fix do_req_fix1 1 =>
+table_add t_req_fix do_req_fix2 2 =>
+table_add t_req_fix do_req_fix3 3 =>
+table_add t_req_fix do_req_fix4 4 =>
+
+table_set_default t_opti_update _nop
+table_add t_opti_update do_opti_update1 1 =>
+table_add t_opti_update do_opti_update2 2 =>
+table_add t_opti_update do_opti_update3 3 =>
+table_add t_opti_update do_opti_update4 4 =>
 
 table_add t_reply_client do_reply_ok 0 =>
 table_add t_reply_client do_reply_abort 1 =>

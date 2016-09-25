@@ -53,58 +53,82 @@ register value_register {
     instance_count: MAX_REG_INST;
 }
 
+register is_opti_cached_register {
+    width: 1;
+    instance_count: MAX_REG_INST;
+}
+register opti_value_register {
+    width: 800;
+    instance_count: MAX_REG_INST;
+}
 
 metadata req_meta_t req_meta;
 
 action do_check_op1() {
     req_meta.is_r = req_meta.is_r | (gotthard_op[0].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_w = req_meta.is_w | (gotthard_op[0].op_type == GOTTHARD_OP_WRITE ? (bit<1>) 1:0);
     req_meta.is_rb = req_meta.is_rb | (gotthard_op[0].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[0].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[0].key] : 0);
+        (gotthard_op[0].op_type == GOTTHARD_OP_READ ? (bit<1>)
+        (~is_cached_register[gotthard_op[0].key] & ~is_opti_cached_register[gotthard_op[0].key]) : 0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[0].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[0].key] : 0);
+        (gotthard_op[0].op_type == GOTTHARD_OP_VALUE ? (bit<1>)
+        (~is_cached_register[gotthard_op[0].key] & ~is_opti_cached_register[gotthard_op[0].key]) : 0);
     req_meta.has_invalid_read = req_meta.has_invalid_read |
         (gotthard_op[0].op_type == GOTTHARD_OP_VALUE and
-            value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[0].key] != gotthard_op[0].value and
+            opti_value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
 }
 
 action do_check_op2() {
     do_check_op1();
     req_meta.is_r = req_meta.is_r | (gotthard_op[1].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_w = req_meta.is_w | (gotthard_op[1].op_type == GOTTHARD_OP_WRITE ? (bit<1>) 1:0);
     req_meta.is_rb = req_meta.is_rb | (gotthard_op[1].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[1].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[1].key] : 0);
+        (gotthard_op[1].op_type == GOTTHARD_OP_READ ? (bit<1>)
+        (~is_cached_register[gotthard_op[1].key] & ~is_opti_cached_register[gotthard_op[1].key]) : 0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[1].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[1].key] : 0);
+        (gotthard_op[1].op_type == GOTTHARD_OP_VALUE ? (bit<1>)
+        (~is_cached_register[gotthard_op[1].key] & ~is_opti_cached_register[gotthard_op[1].key]) : 0);
     req_meta.has_invalid_read = req_meta.has_invalid_read |
         (gotthard_op[1].op_type == GOTTHARD_OP_VALUE and
-            value_register[gotthard_op[1].key] != gotthard_op[1].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[1].key] != gotthard_op[1].value and
+            opti_value_register[gotthard_op[1].key] != gotthard_op[1].value ? (bit<1>) 1 : 0);
 }
 
 action do_check_op3() {
     do_check_op2();
     req_meta.is_r = req_meta.is_r | (gotthard_op[2].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_w = req_meta.is_w | (gotthard_op[2].op_type == GOTTHARD_OP_WRITE ? (bit<1>) 1:0);
     req_meta.is_rb = req_meta.is_rb | (gotthard_op[2].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[2].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[2].key] : 0);
+        (gotthard_op[2].op_type == GOTTHARD_OP_READ ? (bit<1>)
+        (~is_cached_register[gotthard_op[2].key] & ~is_opti_cached_register[gotthard_op[2].key]) : 0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[2].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[2].key] : 0);
+        (gotthard_op[2].op_type == GOTTHARD_OP_VALUE ? (bit<1>)
+        (~is_cached_register[gotthard_op[2].key] & ~is_opti_cached_register[gotthard_op[2].key]) : 0);
     req_meta.has_invalid_read = req_meta.has_invalid_read |
         (gotthard_op[2].op_type == GOTTHARD_OP_VALUE and
-            value_register[gotthard_op[2].key] != gotthard_op[2].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[2].key] != gotthard_op[2].value and
+            opti_value_register[gotthard_op[2].key] != gotthard_op[2].value ? (bit<1>) 1 : 0);
 }
 
 action do_check_op4() {
     do_check_op3();
     req_meta.is_r = req_meta.is_r | (gotthard_op[3].op_type == GOTTHARD_OP_READ ? (bit<1>) 1:0);
+    req_meta.is_w = req_meta.is_w | (gotthard_op[3].op_type == GOTTHARD_OP_WRITE ? (bit<1>) 1:0);
     req_meta.is_rb = req_meta.is_rb | (gotthard_op[3].op_type == GOTTHARD_OP_VALUE ? (bit<1>) 1:0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[3].op_type == GOTTHARD_OP_READ ? (bit<1>) ~is_cached_register[gotthard_op[3].key] : 0);
+        (gotthard_op[3].op_type == GOTTHARD_OP_READ ? (bit<1>)
+        (~is_cached_register[gotthard_op[3].key] & ~is_opti_cached_register[gotthard_op[3].key]) : 0);
     req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[3].op_type == GOTTHARD_OP_VALUE ? (bit<1>) ~is_cached_register[gotthard_op[3].key] : 0);
+        (gotthard_op[3].op_type == GOTTHARD_OP_VALUE ? (bit<1>)
+        (~is_cached_register[gotthard_op[3].key] & ~is_opti_cached_register[gotthard_op[3].key]) : 0);
     req_meta.has_invalid_read = req_meta.has_invalid_read |
         (gotthard_op[3].op_type == GOTTHARD_OP_VALUE and
-            value_register[gotthard_op[3].key] != gotthard_op[3].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[3].key] != gotthard_op[3].value and
+            opti_value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
 }
 
 table t_req_pass1 {
@@ -121,47 +145,51 @@ table t_req_pass1 {
     size: 32;
 }
 
-action do_req_update1() {
+action do_req_fix1() {
     gotthard_op[0].op_type = gotthard_op[0].op_type == GOTTHARD_OP_READ or gotthard_op[0].op_type == GOTTHARD_OP_VALUE ?
         (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
     gotthard_op[0].key = gotthard_op[0].key;
-    gotthard_op[0].value = value_register[gotthard_op[0].key];
+    gotthard_op[0].value = is_opti_cached_register[gotthard_op[0].key] == 1 ?
+        opti_value_register[gotthard_op[0].key] : value_register[gotthard_op[0].key];
 }
 
-action do_req_update2() {
-    do_req_update1();
+action do_req_fix2() {
+    do_req_fix1();
     gotthard_op[1].op_type = gotthard_op[1].op_type == GOTTHARD_OP_READ or gotthard_op[1].op_type == GOTTHARD_OP_VALUE ?
         (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
     gotthard_op[1].key = gotthard_op[1].key;
-    gotthard_op[1].value = value_register[gotthard_op[1].key];
+    gotthard_op[1].value = is_opti_cached_register[gotthard_op[1].key] == 1 ?
+        opti_value_register[gotthard_op[1].key] : value_register[gotthard_op[1].key];
 }
 
-action do_req_update3() {
-    do_req_update2();
+action do_req_fix3() {
+    do_req_fix2();
     gotthard_op[2].op_type = gotthard_op[2].op_type == GOTTHARD_OP_READ or gotthard_op[2].op_type == GOTTHARD_OP_VALUE ?
         (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
     gotthard_op[2].key = gotthard_op[2].key;
-    gotthard_op[2].value = value_register[gotthard_op[2].key];
+    gotthard_op[2].value = is_opti_cached_register[gotthard_op[2].key] == 1 ?
+        opti_value_register[gotthard_op[2].key] : value_register[gotthard_op[2].key];
 }
 
-action do_req_update4() {
-    do_req_update3();
+action do_req_fix4() {
+    do_req_fix3();
     gotthard_op[3].op_type = gotthard_op[3].op_type == GOTTHARD_OP_READ or gotthard_op[3].op_type == GOTTHARD_OP_VALUE ?
         (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
     gotthard_op[3].key = gotthard_op[3].key;
-    gotthard_op[3].value = value_register[gotthard_op[3].key];
+    gotthard_op[3].value = is_opti_cached_register[gotthard_op[3].key] == 1 ?
+        opti_value_register[gotthard_op[3].key] : value_register[gotthard_op[3].key];
 }
 
-table t_req_update {
+table t_req_fix {
     reads {
         gotthard_hdr.op_cnt: exact;
     }
     actions {
         _nop;
-        do_req_update1;
-        do_req_update2;
-        do_req_update3;
-        do_req_update4;
+        do_req_fix1;
+        do_req_fix2;
+        do_req_fix3;
+        do_req_fix4;
     }
     size: 32;
 }
@@ -194,6 +222,7 @@ action do_store_update1() {
     is_cached_register[gotthard_op[0].key] =
         gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
             (bit<1>)1 : is_cached_register[gotthard_op[0].key];
+    is_opti_cached_register[gotthard_op[0].key] = (bit<1>)0;
 }
 
 action do_store_update2() {
@@ -204,6 +233,7 @@ action do_store_update2() {
     is_cached_register[gotthard_op[1].key] =
         gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
             (bit<1>)1 : is_cached_register[gotthard_op[1].key];
+    is_opti_cached_register[gotthard_op[1].key] = (bit<1>)0;
 }
 
 action do_store_update3() {
@@ -214,6 +244,7 @@ action do_store_update3() {
     is_cached_register[gotthard_op[2].key] =
         gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
             (bit<1>)1 : is_cached_register[gotthard_op[2].key];
+    is_opti_cached_register[gotthard_op[2].key] = (bit<1>)0;
 }
 
 action do_store_update4() {
@@ -224,6 +255,7 @@ action do_store_update4() {
     is_cached_register[gotthard_op[3].key] =
         gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
             (bit<1>)1 : is_cached_register[gotthard_op[3].key];
+    is_opti_cached_register[gotthard_op[3].key] = (bit<1>)0;
 }
 
 table t_store_update {
@@ -240,6 +272,50 @@ table t_store_update {
     size: 32;
 }
 
+action do_opti_update1() {
+    is_opti_cached_register[gotthard_op[0].key] = gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        (bit<1>) 1 : is_opti_cached_register[gotthard_op[0].key];
+    opti_value_register[gotthard_op[0].key] = gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        gotthard_op[0].value : opti_value_register[gotthard_op[0].key];
+}
+
+action do_opti_update2() {
+    do_opti_update1();
+    is_opti_cached_register[gotthard_op[1].key] = gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        (bit<1>) 1 : is_opti_cached_register[gotthard_op[1].key];
+    opti_value_register[gotthard_op[1].key] = gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        gotthard_op[1].value : opti_value_register[gotthard_op[1].key];
+}
+
+action do_opti_update3() {
+    do_opti_update2();
+    is_opti_cached_register[gotthard_op[2].key] = gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        (bit<1>) 1 : is_opti_cached_register[gotthard_op[2].key];
+    opti_value_register[gotthard_op[2].key] = gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        gotthard_op[2].value : opti_value_register[gotthard_op[2].key];
+}
+
+action do_opti_update4() {
+    do_opti_update3();
+    is_opti_cached_register[gotthard_op[3].key] = gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        (bit<1>) 1 : is_opti_cached_register[gotthard_op[3].key];
+    opti_value_register[gotthard_op[3].key] = gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
+        gotthard_op[3].value : opti_value_register[gotthard_op[3].key];
+}
+
+table t_opti_update {
+    reads {
+        gotthard_hdr.op_cnt: exact;
+    }
+    actions {
+        _nop;
+        do_opti_update1;
+        do_opti_update2;
+        do_opti_update3;
+        do_opti_update4;
+    }
+    size: 32;
+}
 
 
 action _drop() {
@@ -309,8 +385,11 @@ control ingress {
                 apply(t_req_pass1);
                 if ((req_meta.is_r == 1 and req_meta.has_cache_miss == 0) or
                     (req_meta.is_rb == 1 and req_meta.has_invalid_read == 1 and req_meta.has_cache_miss == 0)) {
-                    apply(t_req_update);
+                    apply(t_req_fix);
                     apply(t_reply_client);
+                }
+                else if (req_meta.is_w == 1) {
+                    apply(t_opti_update);
                 }
             }
             else {

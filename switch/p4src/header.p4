@@ -65,6 +65,7 @@ header_type op_parse_meta_t {
 header_type req_meta_t {
     fields {
         bit<1> is_r;
+        bit<1> is_w;
         bit<1> is_rb;
         bit<1> has_cache_miss;
         bit<1> has_invalid_read;

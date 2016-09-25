@@ -153,7 +153,9 @@ class SoftwareSwitch:
                     for o in w_ops: self.cache.optimisticInsert(o=o)
             else: # R Operation
                 r_ops = [o for o in req.ops if o.type == TXN_READ]
-                assert(len(r_ops))
+                if len(r_ops) < 1:
+                    self._sendToClient(TxnMsg(replyto=req, status=STATUS_BADREQ, from_switch=1))
+                    continue
                 cached_reads = [self._op(o=o) for o in r_ops if o.key in self.cache.values]
                 if len(cached_reads) == len(r_ops):
                     self._sendToClient(TxnMsg(
