@@ -53,6 +53,15 @@ with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl
     assert(res.op(k=2).type == TXN_VALUE)
     assert(res.op(k=2).value.rstrip('\0') == 'b')
 
+    # Try writing multiple values
+    res = cl.req([w(4, 'hello'), w(5, 'world')])
+    assert(res.status == STATUS_OK)
+    assert(len(res.ops) == 2)
+    assert(res.op(k=4).type == TXN_UPDATED)
+    assert(res.op(k=4).value.rstrip('\0') == 'hello')
+    assert(res.op(k=5).type == TXN_UPDATED)
+    assert(res.op(k=5).value.rstrip('\0') == 'world')
+
     # Try a good r/w
     res1 = cl.req(r(1))
     assert(res1.status == STATUS_OK)
@@ -118,7 +127,7 @@ with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl
     assert(res.op(k=2).value.rstrip('\0') == 'b')
 
     # Cleanup: write null to the keys
-    for i in range(4):
+    for i in range(5):
         res1 = cl.req(w(i+1, ''))
         assert(res1.status == STATUS_OK)
         assert(res1.ops[0].key == i+1)

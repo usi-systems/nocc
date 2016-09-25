@@ -66,6 +66,7 @@ class TxnOp:
             self.type, self.key, self.value = t, key, value
 
     def unpack(self, binstr):
+        if len(binstr) < TXNOP_SIZE: raise Exception("TxnOp should be at least %d bytes, but received %d" % (TXNOP_SIZE, len(binstr)))
         self.type, self.key, self.value = struct.unpack(txnop_fmt, binstr)
 
     def pack(self):
@@ -83,8 +84,9 @@ class TxnOp:
         yield 'v', self.value.rstrip('\0')
 
 
-txnmsg_fmt = '!B I i B B %ds' % (TXNOP_SIZE*MAX_TXNOP)
-TXNMSG_SIZE = struct.Struct(txnmsg_fmt).size
+txnmsg_fmt = '!B I i B B'
+TXNHDR_SIZE = struct.Struct(txnmsg_fmt).size
+MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*MAX_TXNOP
 
 class TxnMsg:
     flags = None
@@ -107,15 +109,17 @@ class TxnMsg:
             self.cl_id, self.req_id, self.status, self.ops = cl_id, req_id, status, ops
 
     def unpack(self, binstr):
-        flags_value, self.cl_id, self.req_id, self.status, op_cnt, ops_binstr = struct.unpack(txnmsg_fmt, binstr)
+        if len(binstr) < TXNHDR_SIZE: raise Exception("TxnMsg should be at least %d bytes, but received %d" % (TXNHDR_SIZE, len(binstr)))
+        flags_value, self.cl_id, self.req_id, self.status, op_cnt = struct.unpack(txnmsg_fmt, binstr[:TXNHDR_SIZE])
         assert(op_cnt <= MAX_TXNOP)
         self.flags.unpack(flags_value)
+        ops_binstr = binstr[TXNHDR_SIZE:]
         self.ops = [TxnOp(binstr=ops_binstr[i:i+TXNOP_SIZE]) for i in xrange(0, op_cnt*TXNOP_SIZE, TXNOP_SIZE)]
 
     def pack(self):
         ops_binstr = ''.join([op.pack() for op in self.ops])
         return struct.pack(txnmsg_fmt, self.flags.pack(), self.cl_id, self.req_id,
-                self.status, len(self.ops), ops_binstr)
+                self.status, len(self.ops)) + ops_binstr
 
     def op(self, k=None, t=None):
         found = [o for o in self.ops if (k and o.key == k) or (t and o.type == t)]
@@ -137,10 +141,13 @@ class Store:
     sequences = {}
     seq = 0
 
+    def _val(self, key):
+        return self.values[key] if key in self.values else ''
+
     def _get(self, o=None, k=None, t=TXN_VALUE):
         assert(k or (o and o.key))
         return TxnOp(t=t, key=o.key if o else k,
-                value=self.values[o.key if o else k])
+                value=self._val(o.key if o else k))
 
     def applyTxn(self, ops=[]):
         rb_ops = [o for o in ops if o.type == TXN_VALUE] # read before
@@ -148,7 +155,7 @@ class Store:
 
         # If it's a RW TXN, check that the reads are valid:
         if len(rb_ops) > 0 and len(w_ops) > 0:
-            bad_reads = [self._get(o=o) for o in rb_ops if self.values[o.key] != o.value]
+            bad_reads = [self._get(o=o) for o in rb_ops if self._val(o.key) != o.value]
             if len(bad_reads) > 0:
                 return (STATUS_ABORT, bad_reads)
 
@@ -238,7 +245,7 @@ class StoreClient:
             del self.recv_queue[req_id]
             return res
         while True:
-            data, fromaddr = self.sock.recvfrom(TXNMSG_SIZE)
+            data, fromaddr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
             assert(fromaddr == self.store_addr)
             res = TxnMsg(binstr=data)
             self._log("received", res=res)

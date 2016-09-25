@@ -28,7 +28,7 @@ if args.log:
 
 while True:
     try:
-        data, addr = sock.recvfrom(TXNMSG_SIZE)
+        data, addr = sock.recvfrom(MAX_TXNMSG_SIZE)
     except socket.error as (code, msg):
         if code != errno.EINTR:
             raise

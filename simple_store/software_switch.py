@@ -43,7 +43,7 @@ class ClientPort(asyncore.dispatcher):
         return False
 
     def handle_read(self):
-        data, cl_addr = self.recvfrom(TXNMSG_SIZE)
+        data, cl_addr = self.recvfrom(MAX_TXNMSG_SIZE)
         req = TxnMsg(binstr=data)
         self.client_map[req.cl_id] = cl_addr
         self.req_queue.put(req)
@@ -67,7 +67,7 @@ class StorePort(asyncore.dispatcher):
         return False
 
     def handle_read(self):
-        data, fromaddr = self.recvfrom(TXNMSG_SIZE)
+        data, fromaddr = self.recvfrom(MAX_TXNMSG_SIZE)
         assert(fromaddr == self.store_addr)
         res = TxnMsg(binstr=data)
         self.res_queue.put(res)
