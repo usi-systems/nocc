@@ -105,6 +105,7 @@ def getExperimentStats(experiment_dir):
 
     experiment_params = dict(client_d=conf['clients'][0]['delay'],
                 store_D=conf['server']['delay'],
+                total_delta=conf['total_delay'],
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,

@@ -11,6 +11,9 @@ args = parser.parse_args()
 
 cl = StoreClient(store_addr=(args.host, args.port))
 
-resp = cl.req(w_key=args.key, w_value=args.value)
-assert(resp.type == TYPE_RES)
-print status_to_string[resp.status]
+r, w = StoreClient.r, StoreClient.w
+
+with StoreClient(store_addr=(args.host, args.port)) as cl:
+    resp = cl.req(w(args.key, args.value))
+    assert(resp.flags.type == TYPE_RES)
+    print status_to_string[resp.status]
