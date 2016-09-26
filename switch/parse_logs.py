@@ -103,9 +103,11 @@ def getExperimentStats(experiment_dir):
     summary['elapsed_time'] = summary['last_end_time'] - summary['first_start_time']
     summary['concurrent_time'] = summary['first_end_time'] - summary['last_start_time']
 
+    total_delta = conf['total_delay'] if 'total_delay' in conf else conf['server']['delay'] + conf['clients'][0]['delay']
+
     experiment_params = dict(client_d=conf['clients'][0]['delay'],
                 store_D=conf['server']['delay'],
-                total_delta=conf['total_delay'],
+                total_delta=total_delta,
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,

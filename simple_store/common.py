@@ -52,7 +52,7 @@ class BitFlags:
         for f in self.flags: yield f, getattr(self, f)
 
 
-txnop_fmt = '!B i %ds' % VALUE_SIZE
+txnop_fmt = '!B I %ds' % VALUE_SIZE
 TXNOP_SIZE = struct.Struct(txnop_fmt).size
 MAX_TXNOP = 10
 
