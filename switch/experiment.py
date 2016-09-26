@@ -173,28 +173,27 @@ def main():
     sleep(1)
 
     with open(args.entries, 'r') as f:
-        p4_t_entries = f.read()
-    # Remove empty lines
-    p4_t_entries = '\n'.join([e for e in p4_t_entries.split('\n') if e != ''])
-    if p4_t_entries[-1] != "\n": p4_t_entries += "\n"
+        t_entries = [l.rstrip() for l in f.readlines() if l != '\n']
 
-    if conf['switch']['mode'] == 'forward':
-        p4_t_entries += "table_set_default gotthard_cache_table _no_op\n"
-        p4_t_entries += "table_set_default gotthard_pending_write_table _no_op\n"
-        p4_t_entries += "table_set_default gotthard_res_table _no_op\n"
-    elif conf['switch']['mode'] == 'early_abort':
-        p4_t_entries += "table_set_default gotthard_cache_table do_gotthard_cache_lookup 0\n"
-    elif conf['switch']['mode'] == 'optimistic_abort':
-        p4_t_entries += "table_set_default gotthard_cache_table do_gotthard_cache_lookup 1\n"
+    max_op_cnt = 4
+    if conf['switch']['mode'] != 'forward': # i.e. both early/opti abort
+        for i in xrange(1, max_op_cnt+1):
+            t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i))
+            t_entries.append("table_add t_req_pass1 do_check_op%d %d =>"%(i,i))
+            t_entries.append("table_add t_req_fix do_req_fix%d %d =>"%(i,i))
+
+    if conf['switch']['mode'] == 'optimistic_abort':
+        for i in xrange(1, max_op_cnt+1):
+            t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i))
 
     for n, host in enumerate(hosts):
-        p4_t_entries += "table_add send_frame rewrite_mac %d => %s\n" % (n+1, host['mac'])
-        p4_t_entries += "table_add forward set_dmac %s => %s\n" % (host['ip'], host['mac'])
-        p4_t_entries += "table_add ipv4_lpm set_nhop %s/32 => %s %d\n" % (host['ip'], host['ip'], n+1)
+        t_entries.append("table_add send_frame rewrite_mac %d => %s" % (n+1, host['mac']))
+        t_entries.append("table_add forward set_dmac %s => %s" % (host['ip'], host['mac']))
+        t_entries.append("table_add ipv4_lpm set_nhop %s/32 => %s %d" % (host['ip'], host['ip'], n+1))
 
-    print p4_t_entries
+    print '\n'.join(t_entries)
     p = subprocess.Popen(['./add_entries_stdin.sh', args.json], stdin=subprocess.PIPE)
-    p.communicate(input=p4_t_entries)
+    p.communicate(input='\n'.join(t_entries))
 
     with os.fdopen(os.open(os.path.join(conf['log_dir'], 'summary.txt'), os.O_CREAT | os.O_WRONLY, 0666), 'w') as f:
         cmd_line = ' '.join(['"%s"'%a if ' ' in a else a for a in sys.argv])

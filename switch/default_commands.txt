@@ -1,9 +1,11 @@
 table_set_default send_frame _drop
 table_set_default forward _drop
 table_set_default ipv4_lpm _drop
-table_set_default gotthard_res_table do_gotthard_update_cache
-table_set_default gotthard_cache_table do_gotthard_cache_lookup 0
-table_set_default gotthard_hit_table do_gotthard_hit
-table_set_default gotthard_abort_table do_gotthard_abort
-table_set_default gotthard_pending_write_table do_gotthard_pending_write
-table_set_default gotthard_optimistic_abort_table do_gotthard_optimistic_abort
+
+table_set_default t_store_update _nop
+table_set_default t_req_pass1 _nop
+table_set_default t_req_fix _nop
+table_set_default t_opti_update _nop
+
+table_add t_reply_client do_reply_ok 0 =>
+table_add t_reply_client do_reply_abort 1 =>

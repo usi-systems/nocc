@@ -82,7 +82,7 @@ action do_check_op1() {
         (gotthard_op[0].op_type == GOTTHARD_OP_VALUE and
         is_opti_cached_register[gotthard_op[0].key] == 0 and
         is_cached_register[gotthard_op[0].key] == 1 and
-            opti_value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[0].key] != gotthard_op[0].value ? (bit<1>) 1 : 0);
 }
 
 action do_check_op2() {
@@ -104,7 +104,7 @@ action do_check_op2() {
         (gotthard_op[1].op_type == GOTTHARD_OP_VALUE and
         is_opti_cached_register[gotthard_op[1].key] == 0 and
         is_cached_register[gotthard_op[1].key] == 1 and
-            opti_value_register[gotthard_op[1].key] != gotthard_op[1].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[1].key] != gotthard_op[1].value ? (bit<1>) 1 : 0);
 }
 
 action do_check_op3() {
@@ -126,7 +126,7 @@ action do_check_op3() {
         (gotthard_op[2].op_type == GOTTHARD_OP_VALUE and
         is_opti_cached_register[gotthard_op[2].key] == 0 and
         is_cached_register[gotthard_op[2].key] == 1 and
-            opti_value_register[gotthard_op[2].key] != gotthard_op[2].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[2].key] != gotthard_op[2].value ? (bit<1>) 1 : 0);
 }
 
 action do_check_op4() {
@@ -148,7 +148,7 @@ action do_check_op4() {
         (gotthard_op[3].op_type == GOTTHARD_OP_VALUE and
         is_opti_cached_register[gotthard_op[3].key] == 0 and
         is_cached_register[gotthard_op[3].key] == 1 and
-            opti_value_register[gotthard_op[3].key] != gotthard_op[3].value ? (bit<1>) 1 : 0);
+            value_register[gotthard_op[3].key] != gotthard_op[3].value ? (bit<1>) 1 : 0);
 }
 
 table t_req_pass1 {
