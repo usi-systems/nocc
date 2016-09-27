@@ -149,7 +149,7 @@ class StockRec(SerializableRecord):
                 S_DATA="VARCHAR(64)")
         self.keyfields = ['S_W_ID', 'S_I_ID']
 
-class OrdersRec(SerializableRecord):
+class OrderRec(SerializableRecord):
     def __init__(self):
         SerializableRecord.__init__(self,
                 O_ID="INTEGER",
@@ -185,6 +185,7 @@ class OrderLineRec(SerializableRecord):
                 OL_DIST_INFO="VARCHAR(32)")
         self.keyfields = ['OL_W_ID', 'OL_D_ID', 'OL_O_ID', 'OL_I_ID']
 
+tpcc_record_types = [WarehouseRec, DistrictRec, ItemRec, CustomerRec, HistoryRec, StockRec, OrderRec, NewOrderRec, OrderLineRec]
 
 class BitKeyMap:
     """Map a string to a limited number of bits"""
@@ -242,17 +243,11 @@ def test_records():
     assert w2.fields['W_ID'] == 3
     assert w2.fields['W_CITY'] == 'Lugano'
 
-    dis, ite, cus, his = DistrictRec(), ItemRec(), CustomerRec(), HistoryRec()
-    ordrs, newordrs, ordln, sto = OrdersRec(), NewOrderRec(), OrderLineRec(), StockRec()
+    for rt in tpcc_record_types:
+        r = rt()
+        print r.__class__.__name__, r.size()
+        assert r.size() < 128, "%s struct size is too big: %d bytes" % (r.__class__.__name__, r.size())
 
-    assert dis.size() < 128
-    assert ite.size() < 128
-    assert cus.size() < 128
-    assert his.size() < 128
-    assert ordrs.size() < 128
-    assert newordrs.size() < 128
-    assert ordln.size() < 128
-    assert sto.size() < 128
 
 
 def test_bitkeymap():
