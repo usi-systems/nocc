@@ -291,7 +291,7 @@ class GotthardLogger:
         l = dict(time=self.last_log, event=event)
         if req: l['req'] = dict(req)
         if res: l['res'] = dict(res)
-        line = json.dumps(l, default=lambda x: dict(x), sort_keys=True)
+        line = json.dumps(l, ensure_ascii=False, default=lambda x: dict(x), sort_keys=True)
         if self.stdout:
             print line
         self.logfile.write(line + "\n")

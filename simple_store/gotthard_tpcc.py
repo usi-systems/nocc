@@ -29,6 +29,8 @@ class SerializableRecord:
         self.struct = struct.Struct(self.fmt)
 
     def unpack(self, binstr):
+        binstr = binstr[:self.size()]
+        assert len(binstr) == self.size()
         self.fields = dict(zip(self.fieldnames, self.struct.unpack(binstr)))
         for f in [f for f,t in self.fieldtypes if 's' in t]:
             self.fields[f] = self.fields[f].rstrip('\0')
@@ -38,6 +40,12 @@ class SerializableRecord:
 
     def size(self):
         return self.struct.size
+
+    def key(self):
+        return '.'.join(map(str, sum([(k, self.fields[k]) for k in self.keyfields], ())))
+
+    def __str__(self):
+        return str(self.fields)
 
 
 class WarehouseRec(SerializableRecord):
@@ -52,6 +60,7 @@ class WarehouseRec(SerializableRecord):
                 W_ZIP="VARCHAR(9)",
                 W_TAX="FLOAT",
                 W_YTD="FLOAT")
+        self.keyfields = ['W_ID']
 
 
 class DistrictRec(SerializableRecord):
@@ -68,6 +77,7 @@ class DistrictRec(SerializableRecord):
                 D_TAX="FLOAT",
                 D_YTD="FLOAT",
                 D_NEXT_O_ID="INT")
+        self.keyfields = ['D_W_ID', 'D_ID']
 
 class ItemRec(SerializableRecord):
     def __init__(self):
@@ -102,6 +112,7 @@ class CustomerRec(SerializableRecord):
                 C_PAYMENT_CNT="INTEGER",
                 C_DELIVERY_CNT="INTEGER",
                 C_DATA="VARCHAR(500)")
+        self.keyfields = ['C_W_ID', 'C_D_ID', 'C_ID']
 
 class HistoryRec(SerializableRecord):
     def __init__(self):
@@ -114,6 +125,7 @@ class HistoryRec(SerializableRecord):
                 H_DATE="TIMESTAMP",
                 H_AMOUNT="FLOAT",
                 H_DATA="VARCHAR(32)")
+        self.keyfields = ['H_W_ID', 'H_D_ID', 'H_C_ID']
 
 class StockRec(SerializableRecord):
     def __init__(self):
@@ -135,6 +147,7 @@ class StockRec(SerializableRecord):
                 S_ORDER_CNT="INTEGER",
                 S_REMOTE_CNT="INTEGER",
                 S_DATA="VARCHAR(64)")
+        self.keyfields = ['S_W_ID', 'S_I_ID']
 
 class OrdersRec(SerializableRecord):
     def __init__(self):
@@ -147,6 +160,7 @@ class OrdersRec(SerializableRecord):
                 O_CARRIER_ID="INTEGER",
                 O_OL_CNT="INTEGER",
                 O_ALL_LOCAL="INTEGER")
+        self.keyfields = ['O_W_ID', 'O_D_ID', 'O_C_ID', 'O_ID']
 
 class NewOrderRec(SerializableRecord):
     def __init__(self):
@@ -154,6 +168,7 @@ class NewOrderRec(SerializableRecord):
                 NO_O_ID="INTEGER",
                 NO_D_ID="TINYINT",
                 NO_W_ID="SMALLINT")
+        self.keyfields = ['NO_W_ID', 'NO_D_ID', 'NO_O_ID']
 
 class OrderLineRec(SerializableRecord):
     def __init__(self):
@@ -168,10 +183,35 @@ class OrderLineRec(SerializableRecord):
                 OL_QUANTITY="INTEGER",
                 OL_AMOUNT="FLOAT",
                 OL_DIST_INFO="VARCHAR(32)")
+        self.keyfields = ['OL_W_ID', 'OL_D_ID', 'OL_O_ID', 'OL_I_ID']
 
 
+class BitKeyMap:
+    """Map a string to a limited number of bits"""
 
-def test():
+    def __init__(self, bits=16):
+        self.max_key = 2 ** bits
+        self.mapping = {}
+        self.unused_keys = [] # keys are added to this as they are deleted
+        self.last_key = 0
+
+    def get(self, key_string):
+        if key_string not in self.mapping:
+            if self.last_key < self.max_key-1:
+                self.last_key += 1
+                self.mapping[key_string] = self.last_key
+            else:
+                if len(self.unused_keys) == 0:
+                    raise Exception("Mapping is full; all bits have been exhausted")
+                self.mapping[key_string] = self.unused_keys.pop()
+        return self.mapping[key_string]
+
+    def free(self, key_string):
+        self.unused_keys.append(self.mapping[key_string])
+        del self.mapping[key_string]
+
+
+def test_records():
     r = SerializableRecord(a='i', b='i', s='5s')
     assert r.size() == 13
     r.fields['a'] = 2
@@ -214,4 +254,41 @@ def test():
     assert ordln.size() < 128
     assert sto.size() < 128
 
-test()
+
+def test_bitkeymap():
+    m = BitKeyMap(bits=4)
+    keys = map(str, xrange(1, 16))
+    for k in keys:
+        assert m.get(k) == int(k) # should be inserted
+        assert m.get(k) == int(k) # now it's in the map
+
+    assert len(m.unused_keys) == 0
+
+    try:
+        m.get('17')
+        assert "There shouldn't be any free bits left" and False
+    except AssertionError:
+        raise
+    except Exception as e:
+        assert 'exhausted' in e.message
+
+    m.free('3')
+    assert len(m.unused_keys) == 1
+    assert m.get('unused3') == 3
+    m.free('5')
+    m.free('6')
+    assert len(m.unused_keys) == 2
+    assert m.get('unused6') == 6
+    assert m.get('unused5') == 5
+
+    try:
+        m.get('nospace')
+        assert "There shouldn't be any free bits left" and False
+    except AssertionError:
+        raise
+    except Exception as e:
+        assert 'exhausted' in e.message
+
+if __name__ == '__main__':
+    test_records()
+    test_bitkeymap()
