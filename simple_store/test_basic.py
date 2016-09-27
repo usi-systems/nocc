@@ -127,6 +127,13 @@ with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl
     res = cl.req([TxnOp(t=TXN_NOP, key=0), TxnOp(t=TXN_NOP, key=0)])
     assert(res.status == STATUS_BADREQ)
 
+    # Access a 20-bit key
+    res = cl.req(w(2**20, '20bits'))
+    assert(res.status == STATUS_OK)
+    res = cl.req(r(2**20))
+    assert(res.op(k=2**20).value.rstrip('\0') == '20bits')
+    assert(cl.req(w(2**20, '')).status == STATUS_OK)
+
     # Cleanup: write null to the keys
     for i in range(5):
         res1 = cl.req(w(i+1, ''))

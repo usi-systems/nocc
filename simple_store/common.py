@@ -21,10 +21,11 @@ TXN_UPDATED = 4 # response: the object was just updated to this value
 
 txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
-VALUE_SIZE = 100
+VALUE_SIZE = 128
 
 status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
 
+# TODO: use this instead: http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
 class BitFlags:
 
     def __init__(self, size=1, flags=[], value=0):

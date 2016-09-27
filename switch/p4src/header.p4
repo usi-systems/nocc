@@ -52,7 +52,7 @@ header_type gotthard_op_t {
     fields {
         bit<8> op_type;
         bit<32> key;
-        bit<800> value;
+        bit<GOTTHARD_VALUE_SIZE> value;
     }
 }
 

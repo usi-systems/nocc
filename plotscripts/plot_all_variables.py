@@ -19,7 +19,7 @@ def _get_ind_var_combinations(cur, ind_vars):
     while True:
         rows = cur.fetchall()
         if len(rows) == 0: break
-        combinations += [dict(zip(ind_vars, map(float, vals))) for vals in rows]
+        combinations += [dict(zip(ind_vars, vals)) for vals in rows]
     return combinations
 
 def _get_labels(cur, field):
@@ -68,9 +68,11 @@ def plot_variables(fh=None, filename=None, out_dir="./",
     if plot_independent_vars is None: plot_independent_vars = independent_vars
     for ind_var in plot_independent_vars:                                    # Choose an independent variable
         other_ind_vars = [v for v in independent_vars if v != ind_var]  # Find all the other independent variables
+        assert(len(other_ind_vars) == len(independent_vars) -1)
         combinations = _get_ind_var_combinations(cur, other_ind_vars)   # Find the combinations of the other ind. vars.
         for dep_var in dependent_vars:
             for fixed_ind_vars in combinations:                         # Fix the other ind. vars. and get the values
+                assert(len(fixed_ind_vars.keys()) == len(other_ind_vars))
                 data = _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars)
                 title = "%s vs. %s" % (ind_var, dep_var)
                 name = "%s_vs_%s_%s" % (ind_var, dep_var,

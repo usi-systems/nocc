@@ -1,4 +1,5 @@
-#define MAX_REG_INST 65000
+#define MAX_REG_INST 1048576
+#define GOTTHARD_VALUE_SIZE 1024
 
 #define GOTTHARD_PORT 9999
 
@@ -49,7 +50,7 @@ register is_cached_register {
     instance_count: MAX_REG_INST;
 }
 register value_register {
-    width: 800;
+    width: GOTTHARD_VALUE_SIZE;
     instance_count: MAX_REG_INST;
 }
 
@@ -58,7 +59,7 @@ register is_opti_cached_register {
     instance_count: MAX_REG_INST;
 }
 register opti_value_register {
-    width: 800;
+    width: GOTTHARD_VALUE_SIZE;
     instance_count: MAX_REG_INST;
 }
 

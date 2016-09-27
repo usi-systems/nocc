@@ -170,7 +170,7 @@ def main():
         h.describe()
 
 
-    sleep(1)
+    sleep(3)
 
     with open(args.entries, 'r') as f:
         t_entries = [l.rstrip() for l in f.readlines() if l != '\n']
