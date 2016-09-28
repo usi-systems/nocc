@@ -62,6 +62,11 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert(res.op(k=5).type == TXN_UPDATED)
     assert(res.op(k=5).value.rstrip('\0') == 'world')
 
+    # Try a single RB
+    res = cl.req(RB(1, 'a'))
+    assert(res.status == STATUS_OK)
+    assert(res.flags.from_switch == 0)
+
     # Try a good r/w
     res1 = cl.req(R(1))
     assert(res1.status == STATUS_OK)

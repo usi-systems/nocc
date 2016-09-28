@@ -35,6 +35,7 @@ while True:
         break
     req = TxnMsg(binstr=data)
     if log: log.log("received", req=req)
+    assert req.flags.type == TYPE_REQ
 
     status, ops = store.applyTxn(req.ops)
 

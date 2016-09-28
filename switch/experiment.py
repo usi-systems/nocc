@@ -36,6 +36,7 @@ from p4_mininet import P4Switch, P4Host
 
 import argparse
 from time import sleep
+from util import waitForTcpPort
 
 parser = argparse.ArgumentParser(description='Mininet demo')
 parser.add_argument('--behavioral-exe', help='Path to behavioral executable',
@@ -170,7 +171,8 @@ def main():
         h.describe()
 
 
-    sleep(3)
+    waitForTcpPort(9090) # wait for P4 switch to start thrift server
+    sleep(0.3)
 
     with open(args.entries, 'r') as f:
         t_entries = [l.rstrip() for l in f.readlines() if l != '\n']

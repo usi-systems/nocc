@@ -47,12 +47,11 @@ header_type gotthard_hdr_t {
     }
 }
 
-#define GOTTHARD_OP_LEN 105
 header_type gotthard_op_t {
     fields {
         bit<8> op_type;
         bit<32> key;
-        bit<GOTTHARD_VALUE_SIZE> value;
+        bit<GOTTHARD_VALUE_BITS> value;
     }
 }
 
@@ -64,9 +63,9 @@ header_type op_parse_meta_t {
 
 header_type req_meta_t {
     fields {
-        bit<1> is_r;
-        bit<1> is_w;
-        bit<1> is_rb;
+        bit<8> r_cnt;
+        bit<8> w_cnt;
+        bit<8> rb_cnt;
         bit<1> has_cache_miss;
         bit<1> has_invalid_read;
         bit<1> has_opti_invalid_read;
