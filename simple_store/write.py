@@ -14,9 +14,9 @@ args = parser.parse_args()
 
 cl = GotthardClient(store_addr=(args.host, args.port))
 
-r, w = GotthardClient.r, GotthardClient.w
+R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 
 with GotthardClient(store_addr=(args.host, args.port)) as cl:
-    resp = cl.req(w(args.key, args.value))
+    resp = cl.req(W(args.key, args.value))
     assert(resp.flags.type == TYPE_RES)
     print status_to_string[resp.status]

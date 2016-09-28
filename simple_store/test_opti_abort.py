@@ -16,20 +16,20 @@ parser.add_argument("host", type=str, help="server hostname")
 parser.add_argument("port", type=int, help="server port")
 args = parser.parse_args()
 
-r, w = GotthardClient.r, GotthardClient.w
+R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 
 logger = GotthardLogger(args.log, stdout=False) if args.log else None
 
 with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as cl1, GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=2) as cl2:
 
     # Populate the store with one key:
-    res = cl1.req(w(1, 'a'))
+    res = cl1.req(W(1, 'a'))
     assert(res.status == STATUS_OK)
 
     # Issue T1:
-    cl1.reqAsync([r(1, 'a'), w(1, 'b')])
+    cl1.reqAsync([RB(1, 'a'), W(1, 'b')])
     # Issue T2 before T1 commits:
-    cl2.reqAsync([r(1, 'a'), w(1, 'b')])
+    cl2.reqAsync([RB(1, 'a'), W(1, 'b')])
 
     res1, res2 = cl1.recvres(), cl2.recvres()
 
@@ -41,14 +41,14 @@ with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) a
     assert(res2.ops[0].value.rstrip('\0') == 'b')
 
     # Use the value in the ABORT msg to make another request:
-    cl1.reqAsync([r(1, 'b'), w(1, 'c')]) # T1
-    t2res1 = cl2.req([r(1, 'b'), w(1, 'c')]) # T2
+    cl1.reqAsync([RB(1, 'b'), W(1, 'c')]) # T1
+    t2res1 = cl2.req([RB(1, 'b'), W(1, 'c')]) # T2
     assert(t2res1.status == STATUS_OPTIMISTIC_ABORT)
     assert(t2res1.flags.from_switch == 1) # should be aborted by switch
     assert(t2res1.ops[0].type == TXN_VALUE) # the optimistic value
     assert(t2res1.ops[0].value.rstrip('\0') == 'c')
 
-    cl2.reqAsync([r(1, t2res1.ops[0].value), w(1, 'd')]) # T2'
+    cl2.reqAsync([RB(1, t2res1.ops[0].value), W(1, 'd')]) # T2'
 
     t1res = cl1.recvres() # In the meantime, T1 should have succeeded
     assert(t1res.status == STATUS_OK)
@@ -60,13 +60,13 @@ with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) a
 
 
     # Try three RW while the first TXN is still in flight:
-    cl1.reqAsync(w(1, 'a')) # T1
+    cl1.reqAsync(W(1, 'a')) # T1
     sleep(0.005)
-    cl2.reqAsync([r(1, 'a'), w(1, 'b')]) # T2
+    cl2.reqAsync([RB(1, 'a'), W(1, 'b')]) # T2
     sleep(0.005)
-    cl2.reqAsync([r(1, 'b'), w(1, 'c')]) # T3
+    cl2.reqAsync([RB(1, 'b'), W(1, 'c')]) # T3
     sleep(0.005)
-    cl2.reqAsync([r(1, 'c'), w(1, 'd')]) # T4
+    cl2.reqAsync([RB(1, 'c'), W(1, 'd')]) # T4
 
     t1res = cl1.recvres()
     t2res, t3res, t4res = cl2.recvres(), cl2.recvres(), cl2.recvres()
@@ -80,9 +80,9 @@ with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) a
     assert(t4res.ops[0].value.rstrip('\0') == 'd')
 
     # Should be able to perform an optimistic R
-    cl1.reqAsync(w(1, 'opti')) # T1
+    cl1.reqAsync(W(1, 'opti')) # T1
     sleep(0.001)
-    t2res = cl2.req(r(1, 'garbage')) # T2
+    t2res = cl2.req(RB(1, 'garbage')) # T2
     t1res = cl1.recvres()
     assert(t2res.status == STATUS_OPTIMISTIC_ABORT)
     assert(len(t2res.ops) == 1)
@@ -90,5 +90,5 @@ with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) a
 
 
     # cleanup
-    res = cl1.req(w(1, ''))
+    res = cl1.req(W(1, ''))
     assert(res.status == STATUS_OK)

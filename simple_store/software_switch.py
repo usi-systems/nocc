@@ -138,6 +138,10 @@ class SoftwareSwitch:
             r_ops = [o for o in req.ops if o.type == TXN_READ]
             w_ops = [o for o in req.ops if o.type == TXN_WRITE]
 
+            if len(r_ops) > 0: # Switch cannot satisfy R operations
+                self._sendToStore(req)
+                continue
+
             # Check all the read-befores
             was_optimistic = False
             bad_reads = []
@@ -154,15 +158,13 @@ class SoftwareSwitch:
                     status=STATUS_OPTIMISTIC_ABORT if was_optimistic else STATUS_ABORT))
                 continue
 
-            # Update the optimistic cache with write values
-            if len(w_ops) > 0:
-                if self.mode == 'optimistic_abort':
-                    for o in w_ops: self.cache.optimisticInsert(o=o)
-            # If only one R, satisfy it if possible
-            elif len(r_ops) == 1 and r_ops[0].key in self.cache.values:
-                self._sendToClient(TxnMsg(replyto=req, status=STATUS_OK, from_switch=1,
-                    ops=[self._op(o=r_ops[0])]))
+            if len(w_ops) == 0: # the client only issued some RB() to check its state
+                self._sendToClient(TxnMsg(replyto=req, from_switch=1, status=STATUS_OK))
                 continue
+
+            # Update the optimistic cache with write values
+            if self.mode == 'optimistic_abort':
+                for o in w_ops: self.cache.optimisticInsert(o=o)
 
             self._sendToStore(req) # forward the packet
 

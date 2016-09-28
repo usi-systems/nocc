@@ -45,6 +45,7 @@ class SerializableRecord:
         self.fields = dict(zip(self.pack_fields, self.struct.unpack(binstr)))
         for f in [f for f in self.pack_fields if 's' in self.fielddefs[f][0]]:
             self.fields[f] = self.fields[f].rstrip('\0')
+        return self
 
     def pack(self):
         vals = [self._fmtfield(f) for f in self.pack_fields]
@@ -66,10 +67,20 @@ class SerializableRecord:
         #if 's' in self.fieldfmts[f]: return str(self.fields[f])
         return self.fields[f]
 
-    def insert(self, values):
-        """Set the fields to the tuple of values. N.B. It assumses the record's fields are ordered!"""
-        for f, v in zip(self.fieldnames, values):
-            self.fields[f] = v
+    def set(self, fields):
+        """Set the values of the record's fields. Tuples should be in the same order as the record's fields."""
+        if type(fields) in [list, tuple]:
+            assert len(fields) == len(self.fieldnames)
+            for f, v in zip(self.fieldnames, fields):
+                self.fields[f] = v
+        elif type(fields) is dict:
+            for f in fields:
+                assert f in self.fields, "Fieldname %s does not belong to %s" %(f, self.__class__.__name__)
+                self.fields[f] = fields[f]
+        return self
+
+    def reset(self):
+        for f in self.fields: self.fields[f] = None
 
     def size(self):
         return self.struct.size
@@ -280,8 +291,9 @@ def test_records():
     assert 'W_TAX' in w.fields
     assert w.fieldnames[0] == 'W_ID', "fields should be in correct order"
     assert w.fieldnames[-1] == 'W_YTD', "fields should be in correct order"
-    w.fields = dict(W_ID=3, W_NAME="bar", W_STREET_1="zurigo", W_STREET_2="boh",
-            W_CITY="Lugano", W_STATE="TI", W_ZIP="6900", W_TAX=12.2, W_YTD=123.33)
+    w.fields['W_ID'] = 3
+    w.set(dict(W_NAME="bar", W_STREET_1="zurigo", W_STREET_2="boh",
+            W_CITY="Lugano", W_STATE="TI", W_ZIP="6900", W_TAX=12.2, W_YTD=123.33))
     s = w.pack()
 
     w2 = WarehouseRec()
@@ -290,14 +302,14 @@ def test_records():
     assert w2.fields['W_CITY'] == 'Lugano'
 
     no = NewOrderRec()
-    no.insert((1, 2, 3))
+    no.set((1, 2, 3))
     assert no.fields['NO_O_ID'] == 1, "inserted from correct index in tuple"
     assert no.fields['NO_D_ID'] == 2, "inserted from correct index in tuple"
     assert no.fields['NO_W_ID'] == 3, "inserted from correct index in tuple"
 
     for rt in tpcc_record_types:
         r = rt()
-        print r.__class__.__name__, r.size()
+        #print r.__class__.__name__, r.size()
         assert r.size() < 128, "%s struct size is too big: %d bytes" % (r.__class__.__name__, r.size())
 
 

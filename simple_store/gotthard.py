@@ -268,13 +268,16 @@ class GotthardClient:
             return res
 
     @staticmethod
-    def w(key, val):
+    def W(key, val):
         return TxnOp(t=TXN_WRITE, key=key, value=val)
 
     @staticmethod
-    def r(key, val=None):
-        t = TXN_READ if val is None else TXN_VALUE # r or rb?
-        return TxnOp(t=t, key=key, value=val if val else '')
+    def R(key):
+        return TxnOp(t=TXN_READ, key=key, value='')
+
+    @staticmethod
+    def RB(key, val):
+        return TxnOp(t=TXN_VALUE, key=key, value=val)
 
 
 class GotthardLogger:
