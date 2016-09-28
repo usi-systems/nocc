@@ -16,12 +16,13 @@ r, w = StoreClient.r, StoreClient.w
 
 with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl:
 
-    # Populate the store with one key:
-    res = cl.req(w(1, 'a'))
+    # Populate the store with two keys:
+    res = cl.req([w(1, 'a'), w(2, 'b')])
     assert(res.status == STATUS_OK)
     assert(res.flags.from_switch == 0) # should not have originated at the switch, but store
-    assert(res.ops[0].key == 1)
-    assert(res.ops[0].value.rstrip('\0') == 'a')
+    assert(len(res.ops) == 2)
+    assert(res.op(k=1).value.rstrip('\0') == 'a')
+    assert(res.op(k=2).value.rstrip('\0') == 'b')
 
     # Switch should return cached key:
     res = cl.req(r(1))
@@ -45,5 +46,15 @@ with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl
     assert(t1res.status == STATUS_OK)
     assert(t2res.status == STATUS_ABORT) # opti abort would accept this; early abort only should not
 
+    # Try a bad RB to get their values from cache
+    res = cl.req([r(1, 'wrong'), r(2, 'wrong')])
+    assert(res.status == STATUS_ABORT)
+    assert(res.flags.from_switch == 1) # should be cached on switch
+    assert(len(res.ops) == 2)
+    assert(res.op(k=1).value.rstrip('\0') == 'b')
+    assert(res.op(k=2).value.rstrip('\0') == 'b')
+
     # cleanup
-    res = cl.req(w(1, ''))
+    for k in xrange(1, 3):
+        res = cl.req(w(k, ''))
+        assert(res.status == STATUS_OK)

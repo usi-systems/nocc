@@ -155,28 +155,30 @@ class Store:
                 value=self._val(o.key if o else k))
 
     def applyTxn(self, ops=[]):
-        rb_ops = [o for o in ops if o.type == TXN_VALUE] # read before
-        w_ops = [o for o in ops if o.type == TXN_WRITE]
+        if len(ops) < 1: return (STATUS_BADREQ, [])
 
-        # If it's a RW TXN, check that the reads are valid:
-        if len(rb_ops) > 0 and len(w_ops) > 0:
-            bad_reads = [self._get(o=o) for o in rb_ops if self._val(o.key) != o.value]
-            if len(bad_reads) > 0:
-                return (STATUS_ABORT, bad_reads)
+        rb_ops = [o for o in ops if o.type == TXN_VALUE] # read before
+        r_ops = [o for o in ops if o.type == TXN_READ]
+        w_ops = [o for o in ops if o.type == TXN_WRITE]
+        res_ops = []
+
+
+        # Check that the read-befores are valid:
+        bad_reads = [self._get(o=o) for o in rb_ops if o.value != self._val(o.key)]
+        if len(bad_reads) > 0:
+            return (STATUS_ABORT, bad_reads)
 
         # Process all the write operations:
-        if len(w_ops) > 0:
-            for o in w_ops:
-                self.seq += 1
-                self.sequences[o.key] = self.seq
-                self.values[o.key] = o.value
-            return (STATUS_OK, [self._get(o=o, t=TXN_UPDATED) for o in w_ops])
+        for o in w_ops:
+            self.seq += 1
+            self.sequences[o.key] = self.seq
+            self.values[o.key] = o.value
+            res_ops.append(self._get(o=o, t=TXN_UPDATED))
 
-        # Otherwise, this was simply a read TXN
-        r_ops = [o for o in ops if o.type == TXN_READ]
-        if len(r_ops) < 1:
-            return (STATUS_BADREQ, [])
-        return (STATUS_OK, [self._get(o=o) for o in r_ops])
+        # Process all the reads
+        res_ops += [self._get(o=o) for o in r_ops]
+
+        return (STATUS_OK, res_ops)
 
     def __str__(self):
         s = "key\tseq\tvalue\n"

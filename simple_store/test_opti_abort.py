@@ -79,6 +79,16 @@ with StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as c
     assert(t4res.status == STATUS_OK)
     assert(t4res.ops[0].value.rstrip('\0') == 'd')
 
+    # Should be able to perform an optimistic R
+    cl1.reqAsync(w(1, 'opti')) # T1
+    sleep(0.001)
+    t2res = cl2.req(r(1, 'garbage')) # T2
+    t1res = cl1.recvres()
+    assert(t2res.status == STATUS_OPTIMISTIC_ABORT)
+    assert(len(t2res.ops) == 1)
+    assert(t2res.op(k=1).value.rstrip('\0') == 'opti') # early abort would return the old value
+
+
     # cleanup
     res = cl1.req(w(1, ''))
     assert(res.status == STATUS_OK)

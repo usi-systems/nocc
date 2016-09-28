@@ -130,40 +130,41 @@ class SoftwareSwitch:
                 self._sendToStore(req)
                 continue
 
+            if len(req.ops) < 1:
+                self._sendToClient(TxnMsg(replyto=req, status=STATUS_BADREQ, from_switch=1))
+                continue
+
             rb_ops = [o for o in req.ops if o.type == TXN_VALUE] # read before
+            r_ops = [o for o in req.ops if o.type == TXN_READ]
             w_ops = [o for o in req.ops if o.type == TXN_WRITE]
 
-            if len(rb_ops) > 0 and len(w_ops) > 0: # RW operation
-                if self.mode == 'optimistic_abort':
-                    bad_reads = [self._op(o=o, opti=True) for o in rb_ops
-                            if self.cache.optiValue(o) != o.value]
-                    if len(bad_reads) > 0:
-                        self._sendToClient(TxnMsg(
-                            replyto=req, ops=bad_reads, status=STATUS_OPTIMISTIC_ABORT, from_switch=1))
-                        continue
-                else:
-                    bad_reads = [self._op(o=o) for o in rb_ops if self.cache.values[o.key] != o.value]
-                    if len(bad_reads) > 0:
-                        self._sendToClient(TxnMsg(
-                            replyto=req, ops=bad_reads, status=STATUS_ABORT, from_switch=1))
-                        continue
+            # Check all the read-befores
+            was_optimistic = False
+            bad_reads = []
+            for rb in rb_ops:
+                if self.mode == 'optimistic_abort' and rb.key in self.cache.optimistic_values:
+                    if rb.value != self.cache.optimistic_values[rb.key]:
+                        was_optimistic = True
+                        bad_reads.append(self._op(o=rb, opti=True))
+                elif rb.key in self.cache.values and rb.value != self.cache.values[rb.key]:
+                    bad_reads.append(self._op(o=rb, opti=True))
 
+            if len(bad_reads) > 0:
+                self._sendToClient(TxnMsg(replyto=req, ops=bad_reads, from_switch=1,
+                    status=STATUS_OPTIMISTIC_ABORT if was_optimistic else STATUS_ABORT))
+                continue
+
+            # Update the optimistic cache with write values
             if len(w_ops) > 0:
                 if self.mode == 'optimistic_abort':
                     for o in w_ops: self.cache.optimisticInsert(o=o)
-            else: # R Operation
-                r_ops = [o for o in req.ops if o.type == TXN_READ]
-                if len(r_ops) < 1:
-                    self._sendToClient(TxnMsg(replyto=req, status=STATUS_BADREQ, from_switch=1))
-                    continue
-                cached_reads = [self._op(o=o) for o in r_ops if o.key in self.cache.values]
-                if len(cached_reads) == len(r_ops):
-                    self._sendToClient(TxnMsg(
-                        replyto=req, status=STATUS_OK, ops=cached_reads, from_switch=1))
-                    continue
+            # If only one R, satisfy it if possible
+            elif len(r_ops) == 1 and r_ops[0].key in self.cache.values:
+                self._sendToClient(TxnMsg(replyto=req, status=STATUS_OK, from_switch=1,
+                    ops=[self._op(o=r_ops[0])]))
+                continue
 
-            # Otherwise, just forward packet:
-            self._sendToStore(req)
+            self._sendToStore(req) # forward the packet
 
     def _storeHandler(self):
         while True:
