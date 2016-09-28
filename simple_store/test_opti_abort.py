@@ -8,7 +8,7 @@
 
 import argparse
 from time import sleep
-from common import *
+from gotthard import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)

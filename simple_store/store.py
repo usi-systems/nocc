@@ -4,7 +4,7 @@ import socket
 import time
 import signal
 import errno
-from common import *
+from gotthard import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", type=int, help="port to bind on", required=True)

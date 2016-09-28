@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from threading import Thread
-from common import *
+from gotthard import *
 from random import gauss
 from time import sleep
 

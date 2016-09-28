@@ -7,7 +7,7 @@ import sys
 from Queue import Queue
 import threading
 from time import sleep
-from common import *
+from gotthard import *
 
 class SwitchCache:
     def __init__(self):

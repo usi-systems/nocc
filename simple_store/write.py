@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import argparse
-from common import *
+from gotthard import *
 
 def auto_int(x):
     return int(x, 0)
