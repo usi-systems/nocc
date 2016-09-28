@@ -65,7 +65,6 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     # Try a single RB
     res = cl.req(RB(1, 'a'))
     assert(res.status == STATUS_OK)
-    assert(res.flags.from_switch == 0)
 
     # Try a good r/w
     res1 = cl.req(R(1))
@@ -139,14 +138,19 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert(res.op(k=2**20).value.rstrip('\0') == '20bits')
     assert(cl.req(W(2**20, '')).status == STATUS_OK)
 
-    # Cleanup: write null to the keys
-    for i in range(5):
-        res1 = cl.req(W(i+1, ''))
-        assert(res1.status == STATUS_OK)
-        assert(res1.ops[0].key == i+1)
-        assert(res1.ops[0].value.rstrip('\0') == '')
-        res2 = cl.req(R(i+1))
-        assert(res2.status == STATUS_OK)
-        assert(res2.ops[0].value.rstrip('\0') == '')
+    # Try the biggest transaction allowable
+    ops = [W(i+1, 'hi') for i in xrange(GOTTHARD_MAX_TXNOP)]
+    res = cl.req(ops)
+    assert res.status == STATUS_OK
+    assert len(res.ops) == GOTTHARD_MAX_TXNOP
+    assert set([o.value.rstrip('\0') for o in res.ops]) == set(('hi',))
 
-    cl.close()
+    # R and W in a single transaction
+    res = cl.req([R(1), W(2, 'b')])
+    assert res.status == STATUS_OK
+    assert res.op(k=1).type == TXN_VALUE
+    assert res.op(k=2).type == TXN_UPDATED
+
+    # Cleanup: write null to the keys
+    res = cl.req([W(i+1, '') for i in xrange(GOTTHARD_MAX_TXNOP)])
+    assert res.status == STATUS_OK
