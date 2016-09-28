@@ -5,6 +5,8 @@ import time
 import os
 import threading
 
+GOTTHARD_MAX_TXNOP = 100
+
 TYPE_REQ = 0
 TYPE_RES = 1
 
@@ -55,7 +57,6 @@ class BitFlags:
 
 txnop_fmt = '!B I %ds' % VALUE_SIZE
 TXNOP_SIZE = struct.Struct(txnop_fmt).size
-GOTTHARD_MAX_TXNOP = 10
 
 class TxnOp:
 
@@ -87,8 +88,8 @@ class TxnOp:
         yield 'v', self.value.rstrip('\0')
 
 
-txnmsg_fmt = '!B I i B B'
-TXNHDR_SIZE = struct.Struct(txnmsg_fmt).size
+txnhdr_fmt = '!B I i B B'
+TXNHDR_SIZE = struct.Struct(txnhdr_fmt).size
 MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*GOTTHARD_MAX_TXNOP
 
 class TxnMsg:
@@ -113,7 +114,7 @@ class TxnMsg:
 
     def unpack(self, binstr):
         if len(binstr) < TXNHDR_SIZE: raise Exception("TxnMsg should be at least %d bytes, but received %d" % (TXNHDR_SIZE, len(binstr)))
-        flags_value, self.cl_id, self.req_id, self.status, op_cnt = struct.unpack(txnmsg_fmt, binstr[:TXNHDR_SIZE])
+        flags_value, self.cl_id, self.req_id, self.status, op_cnt = struct.unpack(txnhdr_fmt, binstr[:TXNHDR_SIZE])
         assert(op_cnt <= GOTTHARD_MAX_TXNOP)
         self.flags.unpack(flags_value)
         ops_binstr = binstr[TXNHDR_SIZE:]
@@ -123,7 +124,7 @@ class TxnMsg:
 
     def pack(self):
         ops_binstr = ''.join([op.pack() for op in self.ops])
-        return struct.pack(txnmsg_fmt, self.flags.pack(), self.cl_id, self.req_id,
+        return struct.pack(txnhdr_fmt, self.flags.pack(), self.cl_id, self.req_id,
                 self.status, len(self.ops)) + ops_binstr
 
     def op(self, k=None, t=None):
@@ -186,7 +187,7 @@ class Store:
             s += "%d\t%d\t%s\n" % (key, self.sequences[key], self.values[key].rstrip('\0'))
         return s
 
-class StoreClient:
+class GotthardClient:
 
     def __init__(self, store_addr=None, logger=None, log_filename=None, cl_id=None):
         self.store_addr = store_addr
@@ -310,3 +311,8 @@ class GotthardLogger:
     def __exit__(self, exc_type, exc_value, traceback):
         if not self.closed.isSet():
             self.close()
+
+if __name__ == '__main__':
+    print 'TXNHDR_SIZE', TXNHDR_SIZE
+    print 'TXNOP_SIZE', TXNOP_SIZE
+    print 'MAX_TXNMSG_SIZE', MAX_TXNMSG_SIZE

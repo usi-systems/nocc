@@ -6,9 +6,9 @@ from random import gauss
 from time import sleep
 
 
-class IncClient(Thread, StoreClient):
+class IncClient(Thread, GotthardClient):
     def __init__(self, count, log, store_addr, think, think_var):
-        StoreClient.__init__(self, store_addr=store_addr, logger=log)
+        GotthardClient.__init__(self, store_addr=store_addr, logger=log)
         Thread.__init__(self)
         self.count = count
         self.think = think

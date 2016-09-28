@@ -14,11 +14,11 @@ parser.add_argument("w_key", type=auto_int, help="write key")
 parser.add_argument("w_value", type=str, help="write value")
 args = parser.parse_args()
 
-cl = StoreClient(store_addr=(args.host, args.port))
+cl = GotthardClient(store_addr=(args.host, args.port))
 
-r, w = StoreClient.r, StoreClient.w
+r, w = GotthardClient.r, GotthardClient.w
 
-with StoreClient(store_addr=(args.host, args.port)) as cl:
+with GotthardClient(store_addr=(args.host, args.port)) as cl:
     resp = cl.req([r(args.r_key, args.r_value), w(args.w_key, args.w_value)])
     assert(resp.flags.type == TYPE_RES)
     if resp.status != STATUS_OK:

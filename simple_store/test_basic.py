@@ -8,9 +8,9 @@ parser.add_argument("host", type=str, help="server hostname")
 parser.add_argument("port", type=int, help="server port")
 args = parser.parse_args()
 
-r, w = StoreClient.r, StoreClient.w
+r, w = GotthardClient.r, GotthardClient.w
 
-with StoreClient(store_addr=(args.host, args.port), log_filename=args.log) as cl:
+with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as cl:
 
     # Check that we can write multilpe values
     for i in range(3):

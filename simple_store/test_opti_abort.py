@@ -16,11 +16,11 @@ parser.add_argument("host", type=str, help="server hostname")
 parser.add_argument("port", type=int, help="server port")
 args = parser.parse_args()
 
-r, w = StoreClient.r, StoreClient.w
+r, w = GotthardClient.r, GotthardClient.w
 
 logger = GotthardLogger(args.log, stdout=False) if args.log else None
 
-with StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as cl1, StoreClient(store_addr=(args.host, args.port), logger=logger, cl_id=2) as cl2:
+with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) as cl1, GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=2) as cl2:
 
     # Populate the store with one key:
     res = cl1.req(w(1, 'a'))
