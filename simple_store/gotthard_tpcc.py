@@ -1,11 +1,13 @@
 import struct
+import time
+import datetime
 import re
 
 MAX_STR_SIZE=12
 
 def sqlTypeToStructFormat(t):
     if re.match('^([xcbB?hHiIlLqQfdpP]|\d+(s|p))$', t): return t # already a struct fmt
-    inttypes = dict(TINYINT='c', SMALLINT='h', BIGINT='q', INT='i', INTEGER='i',
+    inttypes = dict(TINYINT='B', SMALLINT='h', BIGINT='q', INT='i', INTEGER='i',
                     FLOAT='d', DEC='d', DECIMAL='d', TIMESTAMP='q')
     intname = t.split('(')[0].upper()
     if intname in inttypes: return inttypes[intname]
@@ -17,32 +19,64 @@ def sqlTypeToStructFormat(t):
 
 class SerializableRecord:
 
-    def __init__(self, fields=None, **field_dict):
-        self.fieldtypes = map(lambda f: (f[0], sqlTypeToStructFormat(f[1])),
-            fields if fields else list(field_dict.iteritems()))
-        self.fieldnames = map(lambda x:x[0], self.fieldtypes)
-        self.fmt = '!'
+    def __init__(self, fielddefs=None, **kwargs):
+        if fielddefs is None: fielddefs = kwargs
+        if type(fielddefs) is dict:
+            fielddefs = list(fielddefs.iteritems())
+
+        self.fieldnames = [] # order matters
+        self.fielddefs = {}
         self.fields = {}
-        for f, t in self.fieldtypes:
-            self.fields[f] = None
-            self.fmt += t
+        for fdef in fielddefs:
+            fname, ftype = fdef[0], fdef[1]
+            dont_pack = len(fdef) > 2 and fdef[2]
+            self.fields[fname] = None
+            self.fieldnames.append(fname)
+            self.fielddefs[fname] = (sqlTypeToStructFormat(ftype), dont_pack)
+
+        self.pack_fields = [f for f in self.fieldnames if not self.fielddefs[f][1]]
+        self.fmt = '!' + ' '.join([self.fielddefs[f][0] for f in self.pack_fields])
         self.struct = struct.Struct(self.fmt)
+
 
     def unpack(self, binstr):
         binstr = binstr[:self.size()]
         assert len(binstr) == self.size()
-        self.fields = dict(zip(self.fieldnames, self.struct.unpack(binstr)))
-        for f in [f for f,t in self.fieldtypes if 's' in t]:
+        self.fields = dict(zip(self.pack_fields, self.struct.unpack(binstr)))
+        for f in [f for f in self.pack_fields if 's' in self.fielddefs[f][0]]:
             self.fields[f] = self.fields[f].rstrip('\0')
 
     def pack(self):
-        return self.struct.pack(*[self.fields[f] for f in self.fieldnames])
+        vals = [self._fmtfield(f) for f in self.pack_fields]
+        try:
+            return self.struct.pack(*vals)
+        except:
+            print self.__class__.__name__
+            print self.fieldnames, self.fmt
+            print self.fielddefs
+            print self.fields
+            raise
+
+    def _fmtfield(self, f):
+        if type(self.fields[f]) is datetime.datetime:
+            return time.mktime(self.fields[f].timetuple())
+        if self.fields[f] is None and self.fielddefs[f][0] in ['i', 'I', 'q', 'Q']:
+            return 0
+        # Enable this to implicitly cast strings:
+        #if 's' in self.fieldfmts[f]: return str(self.fields[f])
+        return self.fields[f]
+
+    def insert(self, values):
+        """Set the fields to the tuple of values. N.B. It assumses the record's fields are ordered!"""
+        for f, v in zip(self.fieldnames, values):
+            self.fields[f] = v
 
     def size(self):
         return self.struct.size
 
     def key(self):
-        return '.'.join(map(str, sum([(k, self.fields[k]) for k in self.keyfields], ())))
+        fmtkey = lambda k: ''.join(k.split('_ID'))
+        return '.'.join(sum([(fmtkey(k), str(self.fields[k])) for k in self.keyfields], ()))
 
     def __str__(self):
         return str(self.fields)
@@ -50,140 +84,150 @@ class SerializableRecord:
 
 class WarehouseRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                W_ID="SMALLINT",
-                W_NAME="VARCHAR(16)",
-                W_STREET_1="VARCHAR(32)",
-                W_STREET_2="VARCHAR(32)",
-                W_CITY="VARCHAR(32)",
-                W_STATE="VARCHAR(2)",
-                W_ZIP="VARCHAR(9)",
-                W_TAX="FLOAT",
-                W_YTD="FLOAT")
+        SerializableRecord.__init__(self, (
+                ('W_ID', "SMALLINT"),
+                ('W_NAME', "VARCHAR(16)"),
+                ('W_STREET_1', "VARCHAR(32)"),
+                ('W_STREET_2', "VARCHAR(32)"),
+                ('W_CITY', "VARCHAR(32)"),
+                ('W_STATE', "VARCHAR(2)"),
+                ('W_ZIP', "VARCHAR(9)"),
+                ('W_TAX', "FLOAT"),
+                ('W_YTD', "FLOAT")
+                ))
         self.keyfields = ['W_ID']
 
 
 class DistrictRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                D_ID="TINYINT",
-                D_W_ID="SMALLINT",
-                D_NAME="VARCHAR(16)",
-                D_STREET_1="VARCHAR(32)",
-                D_STREET_2="VARCHAR(32)",
-                D_CITY="VARCHAR(32)",
-                D_STATE="VARCHAR(2)",
-                D_ZIP="VARCHAR(9)",
-                D_TAX="FLOAT",
-                D_YTD="FLOAT",
-                D_NEXT_O_ID="INT")
+        SerializableRecord.__init__(self, (
+                ('D_ID', "TINYINT"),
+                ('D_W_ID', "SMALLINT"),
+                ('D_NAME', "VARCHAR(16)"),
+                ('D_STREET_1', "VARCHAR(32)"),
+                ('D_STREET_2', "VARCHAR(32)"),
+                ('D_CITY', "VARCHAR(32)"),
+                ('D_STATE', "VARCHAR(2)"),
+                ('D_ZIP', "VARCHAR(9)"),
+                ('D_TAX', "FLOAT"),
+                ('D_YTD', "FLOAT"),
+                ('D_NEXT_O_ID', "INT")
+                ))
         self.keyfields = ['D_W_ID', 'D_ID']
 
 class ItemRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                I_ID="INTEGER",
-                I_IM_ID="INTEGER",
-                I_NAME="VARCHAR(32)",
-                I_PRICE="FLOAT",
-                I_DATA="VARCHAR(64)")
+        SerializableRecord.__init__(self, (
+                ('I_ID', "INTEGER"),
+                ('I_IM_ID', "INTEGER"),
+                ('I_NAME', "VARCHAR(32)"),
+                ('I_PRICE', "FLOAT"),
+                ('I_DATA', "VARCHAR(64)")
+                ))
+        self.keyfields = ['I_ID']
 
 class CustomerRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                C_ID="INTEGER",
-                C_D_ID="TINYINT",
-                C_W_ID="SMALLINT",
-                C_FIRST="VARCHAR(32)",
-                C_MIDDLE="VARCHAR(2)",
-                C_LAST="VARCHAR(32)",
-                #C_STREET_1="VARCHAR(32)",
-                #C_STREET_2="VARCHAR(32)",
-                #C_CITY="VARCHAR(32)",
-                #C_STATE="VARCHAR(2)",
-                C_ZIP="VARCHAR(9)",
-                C_PHONE="VARCHAR(32)",
-                C_SINCE="TIMESTAMP",
-                C_CREDIT="VARCHAR(2)",
-                C_CREDIT_LIM="FLOAT",
-                C_DISCOUNT="FLOAT",
-                C_BALANCE="FLOAT",
-                C_YTD_PAYMENT="FLOAT",
-                C_PAYMENT_CNT="INTEGER",
-                C_DELIVERY_CNT="INTEGER",
-                C_DATA="VARCHAR(500)")
+        SerializableRecord.__init__(self, (
+                ('C_ID', "INTEGER"),
+                ('C_D_ID', "TINYINT"),
+                ('C_W_ID', "SMALLINT"),
+                ('C_FIRST', "VARCHAR(32)"),
+                ('C_MIDDLE', "VARCHAR(2)"),
+                ('C_LAST', "VARCHAR(32)"),
+                ('C_STREET_1', "VARCHAR(32)", True), # disabled
+                ('C_STREET_2', "VARCHAR(32)", True), # disabled
+                ('C_CITY', "VARCHAR(32)", True), # disabled
+                ('C_STATE', "VARCHAR(2)", True), # disabled
+                ('C_ZIP', "VARCHAR(9)"),
+                ('C_PHONE', "VARCHAR(32)"),
+                ('C_SINCE', "TIMESTAMP"),
+                ('C_CREDIT', "VARCHAR(2)"),
+                ('C_CREDIT_LIM', "FLOAT"),
+                ('C_DISCOUNT', "FLOAT"),
+                ('C_BALANCE', "FLOAT"),
+                ('C_YTD_PAYMENT', "FLOAT"),
+                ('C_PAYMENT_CNT', "INTEGER"),
+                ('C_DELIVERY_CNT', "INTEGER"),
+                ('C_DATA', "VARCHAR(500)")
+                ))
         self.keyfields = ['C_W_ID', 'C_D_ID', 'C_ID']
 
 class HistoryRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                H_C_ID="INTEGER",
-                H_C_D_ID="TINYINT",
-                H_C_W_ID="SMALLINT",
-                H_D_ID="TINYINT",
-                H_W_ID="SMALLINT",
-                H_DATE="TIMESTAMP",
-                H_AMOUNT="FLOAT",
-                H_DATA="VARCHAR(32)")
+        SerializableRecord.__init__(self, (
+                ('H_C_ID', "INTEGER"),
+                ('H_C_D_ID', "TINYINT"),
+                ('H_C_W_ID', "SMALLINT"),
+                ('H_D_ID', "TINYINT"),
+                ('H_W_ID', "SMALLINT"),
+                ('H_DATE', "TIMESTAMP"),
+                ('H_AMOUNT', "FLOAT"),
+                ('H_DATA', "VARCHAR(32)")
+                ))
         self.keyfields = ['H_W_ID', 'H_D_ID', 'H_C_ID']
 
 class StockRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                S_I_ID="INTEGER",
-                S_W_ID="SMALLINT",
-                S_QUANTITY="INTEGER",
-                S_DIST_01="VARCHAR(32)",
-                #S_DIST_02="VARCHAR(32)",
-                #S_DIST_03="VARCHAR(32)",
-                #S_DIST_04="VARCHAR(32)",
-                #S_DIST_05="VARCHAR(32)",
-                #S_DIST_06="VARCHAR(32)",
-                #S_DIST_07="VARCHAR(32)",
-                #S_DIST_08="VARCHAR(32)",
-                #S_DIST_09="VARCHAR(32)",
-                #S_DIST_10="VARCHAR(32)",
-                S_YTD="INTEGER",
-                S_ORDER_CNT="INTEGER",
-                S_REMOTE_CNT="INTEGER",
-                S_DATA="VARCHAR(64)")
+        SerializableRecord.__init__(self, (
+                ('S_I_ID', "INTEGER"),
+                ('S_W_ID', "SMALLINT"),
+                ('S_QUANTITY', "INTEGER"),
+                ('S_DIST_01', "VARCHAR(32)"),
+                ('S_DIST_02', "VARCHAR(32)", True), # disabled
+                ('S_DIST_03', "VARCHAR(32)", True), # disabled
+                ('S_DIST_04', "VARCHAR(32)", True), # disabled
+                ('S_DIST_05', "VARCHAR(32)", True), # disabled
+                ('S_DIST_06', "VARCHAR(32)", True), # disabled
+                ('S_DIST_07', "VARCHAR(32)", True), # disabled
+                ('S_DIST_08', "VARCHAR(32)", True), # disabled
+                ('S_DIST_09', "VARCHAR(32)", True), # disabled
+                ('S_DIST_10', "VARCHAR(32)", True), # disabled
+                ('S_YTD', "INTEGER"),
+                ('S_ORDER_CNT', "INTEGER"),
+                ('S_REMOTE_CNT', "INTEGER"),
+                ('S_DATA', "VARCHAR(64)")
+                ))
         self.keyfields = ['S_W_ID', 'S_I_ID']
 
 class OrderRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                O_ID="INTEGER",
-                O_C_ID="INTEGER",
-                O_D_ID="TINYINT",
-                O_W_ID="SMALLINT",
-                O_ENTRY_D="TIMESTAMP",
-                O_CARRIER_ID="INTEGER",
-                O_OL_CNT="INTEGER",
-                O_ALL_LOCAL="INTEGER")
+        SerializableRecord.__init__(self, (
+                ('O_ID', "INTEGER"),
+                ('O_C_ID', "INTEGER"),
+                ('O_D_ID', "TINYINT"),
+                ('O_W_ID', "SMALLINT"),
+                ('O_ENTRY_D', "TIMESTAMP"),
+                ('O_CARRIER_ID', "INTEGER"),
+                ('O_OL_CNT', "INTEGER"),
+                ('O_ALL_LOCAL', "INTEGER")
+                ))
         self.keyfields = ['O_W_ID', 'O_D_ID', 'O_C_ID', 'O_ID']
 
 class NewOrderRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                NO_O_ID="INTEGER",
-                NO_D_ID="TINYINT",
-                NO_W_ID="SMALLINT")
+        SerializableRecord.__init__(self, (
+                ('NO_O_ID', "INTEGER"),
+                ('NO_D_ID', "TINYINT"),
+                ('NO_W_ID', "SMALLINT")
+                ))
         self.keyfields = ['NO_W_ID', 'NO_D_ID', 'NO_O_ID']
 
 class OrderLineRec(SerializableRecord):
     def __init__(self):
-        SerializableRecord.__init__(self,
-                OL_O_ID="INTEGER",
-                OL_D_ID="TINYINT",
-                OL_W_ID="SMALLINT",
-                OL_NUMBER="INTEGER",
-                OL_I_ID="INTEGER",
-                OL_SUPPLY_W_ID="SMALLINT",
-                OL_DELIVERY_D="TIMESTAMP",
-                OL_QUANTITY="INTEGER",
-                OL_AMOUNT="FLOAT",
-                OL_DIST_INFO="VARCHAR(32)")
-        self.keyfields = ['OL_W_ID', 'OL_D_ID', 'OL_O_ID', 'OL_I_ID']
+        SerializableRecord.__init__(self, (
+                ('OL_O_ID', "INTEGER"),
+                ('OL_D_ID', "TINYINT"),
+                ('OL_W_ID', "SMALLINT"),
+                ('OL_NUMBER', "INTEGER"),
+                ('OL_I_ID', "INTEGER"),
+                ('OL_SUPPLY_W_ID', "SMALLINT"),
+                ('OL_DELIVERY_D', "TIMESTAMP"),
+                ('OL_QUANTITY', "INTEGER"),
+                ('OL_AMOUNT', "FLOAT"),
+                ('OL_DIST_INFO', "VARCHAR(32)")
+                ))
+        self.keyfields = ['OL_W_ID', 'OL_D_ID', 'OL_O_ID', 'OL_NUMBER']
 
 tpcc_record_types = [WarehouseRec, DistrictRec, ItemRec, CustomerRec, HistoryRec, StockRec, OrderRec, NewOrderRec, OrderLineRec]
 
@@ -232,8 +276,10 @@ def test_records():
     assert r2.fields['s'] == 'hi'
 
     w = WarehouseRec()
-    assert 'W_ID' in w.fields
+    assert 'W_NAME' in w.fields
     assert 'W_TAX' in w.fields
+    assert w.fieldnames[0] == 'W_ID', "fields should be in correct order"
+    assert w.fieldnames[-1] == 'W_YTD', "fields should be in correct order"
     w.fields = dict(W_ID=3, W_NAME="bar", W_STREET_1="zurigo", W_STREET_2="boh",
             W_CITY="Lugano", W_STATE="TI", W_ZIP="6900", W_TAX=12.2, W_YTD=123.33)
     s = w.pack()
@@ -242,6 +288,12 @@ def test_records():
     w2.unpack(s)
     assert w2.fields['W_ID'] == 3
     assert w2.fields['W_CITY'] == 'Lugano'
+
+    no = NewOrderRec()
+    no.insert((1, 2, 3))
+    assert no.fields['NO_O_ID'] == 1, "inserted from correct index in tuple"
+    assert no.fields['NO_D_ID'] == 2, "inserted from correct index in tuple"
+    assert no.fields['NO_W_ID'] == 3, "inserted from correct index in tuple"
 
     for rt in tpcc_record_types:
         r = rt()

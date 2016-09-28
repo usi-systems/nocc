@@ -55,7 +55,7 @@ class BitFlags:
 
 txnop_fmt = '!B I %ds' % VALUE_SIZE
 TXNOP_SIZE = struct.Struct(txnop_fmt).size
-MAX_TXNOP = 10
+GOTTHARD_MAX_TXNOP = 10
 
 class TxnOp:
 
@@ -89,7 +89,7 @@ class TxnOp:
 
 txnmsg_fmt = '!B I i B B'
 TXNHDR_SIZE = struct.Struct(txnmsg_fmt).size
-MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*MAX_TXNOP
+MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*GOTTHARD_MAX_TXNOP
 
 class TxnMsg:
     flags = None
@@ -114,7 +114,7 @@ class TxnMsg:
     def unpack(self, binstr):
         if len(binstr) < TXNHDR_SIZE: raise Exception("TxnMsg should be at least %d bytes, but received %d" % (TXNHDR_SIZE, len(binstr)))
         flags_value, self.cl_id, self.req_id, self.status, op_cnt = struct.unpack(txnmsg_fmt, binstr[:TXNHDR_SIZE])
-        assert(op_cnt <= MAX_TXNOP)
+        assert(op_cnt <= GOTTHARD_MAX_TXNOP)
         self.flags.unpack(flags_value)
         ops_binstr = binstr[TXNHDR_SIZE:]
         self.ops = [TxnOp(binstr=ops_binstr[i:i+TXNOP_SIZE]) for i in xrange(0, op_cnt*TXNOP_SIZE, TXNOP_SIZE)]
@@ -190,6 +190,7 @@ class StoreClient:
 
     def __init__(self, store_addr=None, logger=None, log_filename=None, cl_id=None):
         self.store_addr = store_addr
+        self.resolved_store_addr = None
         self.recv_queue = {}
         self.req_id_seq = 0
         self.closed = True
@@ -199,6 +200,8 @@ class StoreClient:
 
     def open(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.resolved_store_addr = (socket.gethostbyname_ex(self.store_addr[0])[2][0],
+                                    self.store_addr[1])
         self.sock.settimeout(10.0)
         self.sock.bind(('', 0))
         self.cl_addr = self.sock.getsockname()
@@ -254,7 +257,7 @@ class StoreClient:
             return res
         while True:
             data, fromaddr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
-            assert(fromaddr == self.store_addr)
+            assert(fromaddr == self.resolved_store_addr)
             res = TxnMsg(binstr=data)
             self._log("received", res=res)
             if not req_id is None:
