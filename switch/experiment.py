@@ -171,7 +171,7 @@ def main():
         h.describe()
 
 
-    waitForTcpPort(9090) # wait for P4 switch to start thrift server
+    waitForTcpPort(9090, timeout=120) # wait for P4 switch to start thrift server
     sleep(0.3)
 
     with open(args.entries, 'r') as f:
@@ -179,14 +179,14 @@ def main():
 
     max_op_cnt = 4
     if conf['switch']['mode'] != 'forward': # i.e. both early/opti abort
-        for i in xrange(1, max_op_cnt+1):
-            t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i))
-            t_entries.append("table_add t_req_pass1 do_check_op%d %d =>"%(i,i))
-            t_entries.append("table_add t_req_fix do_req_fix%d %d =>"%(i,i))
+        for i in xrange(max_op_cnt):
+            t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i+1))
+            t_entries.append("table_add t_req_pass1 do_check_op%d %d =>"%(i,i+1))
+            t_entries.append("table_add t_req_fix do_req_fix%d %d =>"%(i,i+1))
 
     if conf['switch']['mode'] == 'optimistic_abort':
-        for i in xrange(1, max_op_cnt+1):
-            t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i))
+        for i in xrange(max_op_cnt):
+            t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i+1))
 
     for n, host in enumerate(hosts):
         t_entries.append("table_add send_frame rewrite_mac %d => %s" % (n+1, host['mac']))

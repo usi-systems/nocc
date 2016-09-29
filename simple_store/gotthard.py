@@ -5,7 +5,7 @@ import time
 import os
 import threading
 
-GOTTHARD_MAX_TXNOP = 100
+GOTTHARD_MAX_OP = 4
 
 TYPE_REQ = 0
 TYPE_RES = 1
@@ -90,7 +90,7 @@ class TxnOp:
 
 txnhdr_fmt = '!B I i B B'
 TXNHDR_SIZE = struct.Struct(txnhdr_fmt).size
-MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*GOTTHARD_MAX_TXNOP
+MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*GOTTHARD_MAX_OP
 
 class TxnMsg:
     flags = None
@@ -115,7 +115,7 @@ class TxnMsg:
     def unpack(self, binstr):
         if len(binstr) < TXNHDR_SIZE: raise Exception("TxnMsg should be at least %d bytes, but received %d" % (TXNHDR_SIZE, len(binstr)))
         flags_value, self.cl_id, self.req_id, self.status, op_cnt = struct.unpack(txnhdr_fmt, binstr[:TXNHDR_SIZE])
-        assert(op_cnt <= GOTTHARD_MAX_TXNOP)
+        assert(op_cnt <= GOTTHARD_MAX_OP)
         self.flags.unpack(flags_value)
         ops_binstr = binstr[TXNHDR_SIZE:]
         self.ops = [TxnOp(binstr=ops_binstr[i:i+TXNOP_SIZE]) for i in xrange(0, op_cnt*TXNOP_SIZE, TXNOP_SIZE)]

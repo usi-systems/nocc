@@ -61,7 +61,6 @@ parser parse_udp {
     return parse_gotthard;
 }
 
-#define GOTTHARD_MAX_OP 10
 header gotthard_hdr_t gotthard_hdr;
 header gotthard_op_t gotthard_op[GOTTHARD_MAX_OP];
 

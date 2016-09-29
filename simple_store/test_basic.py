@@ -139,10 +139,10 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert(cl.req(W(2**20, '')).status == STATUS_OK)
 
     # Try the biggest transaction allowable
-    ops = [W(i+1, 'hi') for i in xrange(GOTTHARD_MAX_TXNOP)]
+    ops = [W(i+1, 'hi') for i in xrange(GOTTHARD_MAX_OP)]
     res = cl.req(ops)
     assert res.status == STATUS_OK
-    assert len(res.ops) == GOTTHARD_MAX_TXNOP
+    assert len(res.ops) == GOTTHARD_MAX_OP
     assert set([o.value.rstrip('\0') for o in res.ops]) == set(('hi',))
 
     # R and W in a single transaction
@@ -152,5 +152,5 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert res.op(k=2).type == TXN_UPDATED
 
     # Cleanup: write null to the keys
-    res = cl.req([W(i+1, '') for i in xrange(GOTTHARD_MAX_TXNOP)])
+    res = cl.req([W(i+1, '') for i in xrange(GOTTHARD_MAX_OP)])
     assert res.status == STATUS_OK
