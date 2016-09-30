@@ -38,6 +38,43 @@ def handler(signum, frame):
     sock.close()
 signal.signal(signal.SIGINT, handler)
 
+class RecvQueue:
+    clients = {}
+
+    def pushpop(self, req):
+        if req.frag_cnt == 1:
+            return req.ops
+        if req.cl_id not in self.clients:
+            self.clients[req.cl_id] = {}
+        if req.req_id not in self.clients[req.cl_id]:
+            self.clients[req.cl_id][req.req_id] = []
+        self.clients[req.cl_id][req.req_id].append(req)
+        if len(self.clients[req.cl_id][req.req_id]) == req.frag_cnt:
+            self.clients[req.cl_id][req.req_id].sort(key=lambda r: r.frag_seq)
+            ops = [o for req in self.clients[req.cl_id][req.req_id] for o in req.ops]
+            del self.clients[req.cl_id][req.req_id]
+            return ops
+        return None
+
+recvq = RecvQueue()
+
+def sendResp(req, status, ops, addr):
+    frag_cnt = int(math.ceil(len(ops) / float(GOTTHARD_MAX_OP)))
+
+    res = []
+    for i in xrange(0, frag_cnt):
+        res.append(TxnMsg(replyto=req, status=status,
+            frag_seq=i+1, frag_cnt=frag_cnt,
+            ops=ops[i*GOTTHARD_MAX_OP:(i*GOTTHARD_MAX_OP)+GOTTHARD_MAX_OP]))
+
+    if len(res) == 0:
+        res.append(TxnMsg(replyto=req, status=status))
+
+    for r in res:
+        sock.sendto(r.pack(), addr)
+        if args.verbosity > 1: print "<=", r
+        if log: log.log("sent", res=r)
+
 
 while True:
     try:
@@ -50,17 +87,20 @@ while True:
     if log: log.log("received", req=req)
     assert req.flags.type == TYPE_REQ
 
+    resp_ready = True
+    if args.verbosity > 1: print "=>", req
+
     if req.flags.reset:
         store.clear()
         if args.recover: recover(args.recover)
         status, ops = STATUS_OK, []
     else:
-        status, ops = store.applyTxn(req.ops)
+        txn_ops = recvq.pushpop(req)
+        if txn_ops is None:
+            continue
+        status, ops = store.applyTxn(txn_ops)
 
-    resp = TxnMsg(replyto=req, status=status, ops=ops)
+    sendResp(req, status, ops, addr)
 
-    if args.verbosity > 1: print req, " => ", resp
-    sock.sendto(resp.pack(), addr)
-    if log: log.log("sent", res=resp)
 
 if log: log.close()

@@ -154,7 +154,7 @@ class SoftwareSwitch:
                     status=STATUS_OPTIMISTIC_ABORT if was_optimistic else STATUS_ABORT))
                 continue
 
-            if len(rb_ops) == len(req.ops): # the client only issued some RB() to check its state
+            if len(rb_ops) and len(rb_ops) == len(req.ops): # the client only issued some RB() to check its state
                 self._sendToClient(TxnMsg(replyto=req, from_switch=1, status=STATUS_OK))
                 continue
 

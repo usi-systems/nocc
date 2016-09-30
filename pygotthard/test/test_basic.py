@@ -140,18 +140,53 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert(res.op(k=2**20).value.rstrip('\0') == '20bits')
     assert(cl.req(W(2**20, '')).status == STATUS_OK)
 
-    # Try the biggest transaction allowable
+    # Try the biggest frag size
     ops = [W(i+1, 'hi') for i in xrange(GOTTHARD_MAX_OP)]
     res = cl.req(ops)
     assert res.status == STATUS_OK
     assert len(res.ops) == GOTTHARD_MAX_OP
     assert set([o.value.rstrip('\0') for o in res.ops]) == set(('hi',))
 
+    # Try 1.5x the biggest frag size
+    op_cnt = int(GOTTHARD_MAX_OP * 1.5)
+    ops = [W(i+1, 'hi') for i in xrange(op_cnt)]
+    res = cl.req(ops)
+    assert res.status == STATUS_OK
+    assert len(res.ops) == op_cnt
+    assert set([o.value.rstrip('\0') for o in res.ops]) == set(('hi',))
+
+    # Try 2x the biggest frag size
+    op_cnt = int(GOTTHARD_MAX_OP * 2)
+    ops = [W(i+1, 'hi') for i in xrange(op_cnt)]
+    res = cl.req(ops)
+    assert res.status == STATUS_OK
+    assert len(res.ops) == op_cnt
+    assert set([o.value.rstrip('\0') for o in res.ops]) == set(('hi',))
+
+    # Receive an abort for the first fragmented msg
+    ops = [RB(1, 'garbage')] + [R(i+1) for i in xrange(GOTTHARD_MAX_OP)]
+    res = cl.req(ops)
+    assert(res.op(k=1).type == TXN_VALUE) # should contain correct value
+    assert(res.op(k=1).value.rstrip('\0') == 'hi')
+
+    # Receive an abort for a middle fragmented msg
+    ops = [R(i+1) for i in xrange(GOTTHARD_MAX_OP)] + [RB(1, 'garbage')] + [R(i+1) for i in xrange(GOTTHARD_MAX_OP)]
+    res = cl.req(ops)
+    assert(res.op(k=1).type == TXN_VALUE) # should contain correct value
+    assert(res.op(k=1).value.rstrip('\0') == 'hi')
+
+    # Receive an abort for the last fragmented msg
+    ops = [R(i+1) for i in xrange(GOTTHARD_MAX_OP)] + [RB(1, 'garbage')]
+    res = cl.req(ops)
+    assert(res.op(k=1).type == TXN_VALUE) # should contain correct value
+    assert(res.op(k=1).value.rstrip('\0') == 'hi')
+
     # R and W in a single transaction
     res = cl.req([R(1), W(2, 'b')])
     assert res.status == STATUS_OK
     assert res.op(k=1).type == TXN_VALUE
     assert res.op(k=2).type == TXN_UPDATED
+
 
     # Cleanup: send reset flag to store
     res = cl.reset()

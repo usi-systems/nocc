@@ -1,4 +1,5 @@
 import struct
+import math
 import socket
 import json
 import time
@@ -6,7 +7,7 @@ import os
 import threading
 import pickle
 
-GOTTHARD_MAX_OP = 200
+GOTTHARD_MAX_OP = 4
 
 TYPE_REQ = 0
 TYPE_RES = 1
@@ -93,20 +94,24 @@ class TxnOp:
         yield 'v', self.value.rstrip('\0')
 
 
-txnhdr_fmt = '!B I i B B'
+txnhdr_fmt = '!B I i B B B B'
 TXNHDR_SIZE = struct.Struct(txnhdr_fmt).size
 MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*GOTTHARD_MAX_OP
 
 class TxnMsg:
-    flags = None
-    cl_id = 0
-    req_id = 0
-    status = 0
-    ops = []
 
-    def __init__(self, binstr=None, req=False, res=False, replyto=None, cl_id=0, req_id=0, status=0, from_switch=0, ops=[]):
+    def __init__(self, binstr=None, req=False, res=False, replyto=None,
+            cl_id=0, req_id=0, status=0, frag_seq=1, frag_cnt=1, from_switch=0, ops=[]):
+
         self.flags = BitFlags(flags=['type', 'from_switch', 'reset'])
         self.flags.from_switch = from_switch
+        self.cl_id = cl_id
+        self.req_id = req_id
+        self.frag_seq = frag_seq
+        self.frag_cnt = frag_cnt
+        self.status = status
+        self.ops = ops
+
         if binstr is not None:
             self.unpack(binstr)
         elif replyto is not None:
@@ -115,11 +120,10 @@ class TxnMsg:
         else:
             assert((req or res) and not (req and res))
             self.flags.type = TYPE_REQ if req else TYPE_RES
-            self.cl_id, self.req_id, self.status, self.ops = cl_id, req_id, status, ops
 
     def unpack(self, binstr):
         if len(binstr) < TXNHDR_SIZE: raise Exception("TxnMsg should be at least %d bytes, but received %d" % (TXNHDR_SIZE, len(binstr)))
-        flags_value, self.cl_id, self.req_id, self.status, op_cnt = struct.unpack(txnhdr_fmt, binstr[:TXNHDR_SIZE])
+        flags_value, self.cl_id, self.req_id, self.frag_seq, self.frag_cnt, self.status, op_cnt = struct.unpack(txnhdr_fmt, binstr[:TXNHDR_SIZE])
         assert(op_cnt <= GOTTHARD_MAX_OP)
         self.flags.unpack(flags_value)
         ops_binstr = binstr[TXNHDR_SIZE:]
@@ -130,7 +134,7 @@ class TxnMsg:
     def pack(self):
         ops_binstr = ''.join([op.pack() for op in self.ops])
         return struct.pack(txnhdr_fmt, self.flags.pack(), self.cl_id, self.req_id,
-                self.status, len(self.ops)) + ops_binstr
+                self.frag_seq, self.frag_cnt, self.status, len(self.ops)) + ops_binstr
 
     def op(self, k=None, t=None):
         found = [o for o in self.ops if (k and o.key == k) or (t and o.type == t)]
@@ -142,7 +146,7 @@ class TxnMsg:
     def __iter__(self):
         if self.flags.type == TYPE_RES: yield 'status', status_to_string[self.status]
         if self.flags.from_switch: yield 'from_switch', self.flags.from_switch
-        for f in ['cl_id', 'req_id', 'ops']:
+        for f in ['cl_id', 'req_id', 'ops', 'frag_seq', 'frag_cnt']:
             yield f, getattr(self, f)
 
 
@@ -170,7 +174,6 @@ class Store:
         r_ops = [o for o in ops if o.type == TXN_READ]
         w_ops = [o for o in ops if o.type == TXN_WRITE]
         res_ops = []
-
 
         # Check that the read-befores are valid:
         bad_reads = [self._get(o=o) for o in rb_ops if o.value != self._val(o.key)]
@@ -244,50 +247,85 @@ class GotthardClient:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def req(self, ops, req_id=None):
-        req = self.buildreq(req_id=req_id, ops=ops)
-        self.sendreq(req)
-        return self.recvres(req_id=req.req_id)
+    def req(self, *ops, **kwargs):
+        req_id = kwargs['req_id'] if 'req_id' in kwargs else None
+        if len(ops) == 1 and type(ops[0]) == list: ops = ops[0]
+        reqs = self.buildreq(req_id=req_id, ops=ops)
+        self.sendreq(reqs)
+        return self.recvres(req_id=reqs[0].req_id)
 
     def reset(self):
-        req = self.buildreq()
-        req.flags.reset = True
-        self.sendreq(req)
-        return self.recvres(req_id=req.req_id)
+        reqs = self.buildreq()
+        reqs[0].flags.reset = True
+        self.sendreq(reqs)
+        return self.recvres(req_id=reqs[0].req_id)
 
     def reqAsync(self, ops, req_id=None):
-        req = self.buildreq(req_id=req_id, ops=ops)
-        self.sendreq(req)
-        return req.req_id
+        reqs = self.buildreq(req_id=req_id,
+                ops=ops if type(ops) is list else [ops])
+        self.sendreq(reqs)
+        return reqs[0].req_id
 
     def buildreq(self, req_id=None, ops=[]):
         if req_id is None:
             self.req_id_seq += 1
             req_id = self.req_id_seq
-        if type(ops) != list: ops = [ops]
-        req = TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id, ops=ops)
-        return req
 
-    def sendreq(self, req):
-        req_data = req.pack()
-        self.sock.sendto(req_data, self.store_addr)
-        self._log("sent", req=req)
+        if len(ops) == 0:
+            return [TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id)]
+
+        frag_cnt = int(math.ceil(len(ops) / float(GOTTHARD_MAX_OP)))
+        reqs = []
+        for i in xrange(0, frag_cnt):
+            reqs.append(TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id,
+                frag_seq=i+1, frag_cnt=frag_cnt,
+                ops=ops[i*GOTTHARD_MAX_OP:(i*GOTTHARD_MAX_OP)+GOTTHARD_MAX_OP]))
+        return reqs
+
+    def sendreq(self, reqs):
+        for req in reqs:
+            req_data = req.pack()
+            self.sock.sendto(req_data, self.store_addr)
+            self._log("sent", req=req)
+
+    def _reassemble(self, resps):
+        assert len(resps)
+        r = resps[-1]
+        m = TxnMsg(res=True, cl_id=r.cl_id, req_id=r.req_id, status=r.status,
+                ops=[o for res in resps for o in res.ops])
+        m.flags = r.flags
+        return m
+
+    def _push_recvqueue(self, res):
+        if res.req_id not in self.recv_queue:
+            self.recv_queue[res.req_id] = dict(ready=False,q=[])
+        self.recv_queue[res.req_id]['q'].append(res)
+        if len(self.recv_queue[res.req_id]['q']) == res.frag_cnt:
+            self.recv_queue[res.req_id]['ready'] = True
+
+    def _pop_recvqueue(self, req_id):
+        ready = [i for i, r in self.recv_queue.items() if req_id==i and r['ready']]
+        if req_id is None:
+            ready = [i for i, r in self.recv_queue.items() if r['ready']]
+
+        if len(ready) == 0: return None
+
+        res = self._reassemble(self.recv_queue[ready[0]]['q'])
+        del self.recv_queue[ready[0]]
+        return res
 
     def recvres(self, req_id=None):
-        if not req_id is None and req_id in self.recv_queue:
-            res = self.recv_queue[req_id]
-            del self.recv_queue[req_id]
-            return res
+        res = self._pop_recvqueue(req_id)
+        if res: return res
+
         while True:
             data, fromaddr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
             assert(fromaddr == self.resolved_store_addr)
             res = TxnMsg(binstr=data)
             self._log("received", res=res)
-            if not req_id is None:
-                if req_id != res.req_id:
-                    self.recv_queue[res.req_id] = res
-                    continue
-            return res
+            self._push_recvqueue(res)
+            res = self._pop_recvqueue(req_id)
+            if res: return res
 
     @staticmethod
     def W(key, val):
