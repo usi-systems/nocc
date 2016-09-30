@@ -151,6 +151,10 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert res.op(k=1).type == TXN_VALUE
     assert res.op(k=2).type == TXN_UPDATED
 
-    # Cleanup: write null to the keys
-    res = cl.req([W(i+1, '') for i in xrange(GOTTHARD_MAX_OP)])
+    # Cleanup: send reset flag to store
+    res = cl.reset()
     assert res.status == STATUS_OK
+    assert len(res.ops) == 0
+    res = cl.req(R(1))
+    assert res.status == STATUS_OK
+    assert res.op(k=1).value.rstrip('\0') == ''

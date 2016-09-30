@@ -4,8 +4,9 @@ import json
 import time
 import os
 import threading
+import pickle
 
-GOTTHARD_MAX_OP = 4
+GOTTHARD_MAX_OP = 200
 
 TYPE_REQ = 0
 TYPE_RES = 1
@@ -26,6 +27,10 @@ txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE:
 VALUE_SIZE = 128
 
 status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
+
+
+class GotthardAbortException(Exception):
+    pass
 
 # TODO: use this instead: http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
 class BitFlags:
@@ -100,7 +105,7 @@ class TxnMsg:
     ops = []
 
     def __init__(self, binstr=None, req=False, res=False, replyto=None, cl_id=0, req_id=0, status=0, from_switch=0, ops=[]):
-        self.flags = BitFlags(flags=['type', 'from_switch'])
+        self.flags = BitFlags(flags=['type', 'from_switch', 'reset'])
         self.flags.from_switch = from_switch
         if binstr is not None:
             self.unpack(binstr)
@@ -147,6 +152,9 @@ class Store:
     sequences = {}
     seq = 0
 
+    def clear(self):
+        self.values, self.sequences, self.seq = {}, {}, 0
+
     def _val(self, key):
         return self.values[key] if key in self.values else ''
 
@@ -186,6 +194,14 @@ class Store:
         for key in self.values.keys():
             s += "%d\t%d\t%s\n" % (key, self.sequences[key], self.values[key].rstrip('\0'))
         return s
+
+    def dump(self, f):
+        d = dict(values=self.values, sequences=self.sequences, seq=self.seq)
+        pickle.dump(d, f)
+
+    def load(self, f):
+        d = pickle.load(f)
+        self.values, self.sequences, self.seq = d['values'], d['sequences'], d['seq']
 
 class GotthardClient:
 
@@ -233,12 +249,18 @@ class GotthardClient:
         self.sendreq(req)
         return self.recvres(req_id=req.req_id)
 
+    def reset(self):
+        req = self.buildreq()
+        req.flags.reset = True
+        self.sendreq(req)
+        return self.recvres(req_id=req.req_id)
+
     def reqAsync(self, ops, req_id=None):
         req = self.buildreq(req_id=req_id, ops=ops)
         self.sendreq(req)
         return req.req_id
 
-    def buildreq(self, req_id=None, ops=None):
+    def buildreq(self, req_id=None, ops=[]):
         if req_id is None:
             self.req_id_seq += 1
             req_id = self.req_id_seq

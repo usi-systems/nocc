@@ -130,10 +130,6 @@ class SoftwareSwitch:
                 self._sendToStore(req)
                 continue
 
-            if len(req.ops) < 1:
-                self._sendToClient(TxnMsg(replyto=req, status=STATUS_BADREQ, from_switch=1))
-                continue
-
             rb_ops = [o for o in req.ops if o.type == TXN_VALUE] # read before
             r_ops = [o for o in req.ops if o.type == TXN_READ]
             w_ops = [o for o in req.ops if o.type == TXN_WRITE]
@@ -158,7 +154,7 @@ class SoftwareSwitch:
                     status=STATUS_OPTIMISTIC_ABORT if was_optimistic else STATUS_ABORT))
                 continue
 
-            if len(w_ops) == 0: # the client only issued some RB() to check its state
+            if len(rb_ops) == len(req.ops): # the client only issued some RB() to check its state
                 self._sendToClient(TxnMsg(replyto=req, from_switch=1, status=STATUS_OK))
                 continue
 

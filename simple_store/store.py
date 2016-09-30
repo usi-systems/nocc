@@ -9,6 +9,8 @@ from gotthard import *
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", type=int, help="port to bind on", required=True)
 parser.add_argument("-l", "--log", type=str, help="log file to write to", required=False)
+parser.add_argument("-d", "--dump", type=str, help="dump store to this file on exit", required=False)
+parser.add_argument("-r", "--recover", type=str, help="recover store from this file", required=False)
 parser.add_argument("-v", "--verbosity", type=int, help="set verbosity level", default=0, required=False)
 args = parser.parse_args()
 
@@ -17,13 +19,24 @@ sock.bind(('', args.port))
 
 store = Store()
 
+def recover(filename):
+    with open(args.recover, 'r') as f:
+        store.load(f)
+    if args.verbosity > 0:
+        print "Recovered objects from %s" % filename
+
+if args.recover: recover(args.recover)
+
 log = None
 if args.log:
     log = GotthardLogger(args.log)
-    def handler(signum, frame):
-        log.close()
-        sock.close()
-    signal.signal(signal.SIGINT, handler)
+def handler(signum, frame):
+    if args.dump:
+        with open(args.dump, 'w') as f:
+            store.dump(f)
+    if log: log.close()
+    sock.close()
+signal.signal(signal.SIGINT, handler)
 
 
 while True:
@@ -37,7 +50,12 @@ while True:
     if log: log.log("received", req=req)
     assert req.flags.type == TYPE_REQ
 
-    status, ops = store.applyTxn(req.ops)
+    if req.flags.reset:
+        store.clear()
+        if args.recover: recover(args.recover)
+        status, ops = STATUS_OK, []
+    else:
+        status, ops = store.applyTxn(req.ops)
 
     resp = TxnMsg(replyto=req, status=status, ops=ops)
 
