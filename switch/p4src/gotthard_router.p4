@@ -51,6 +51,8 @@ action do_direction_swap (in bit<8> udp_payload_size) { // return the packet to 
 
     gotthard_hdr.from_switch = (bit<1>)1;
     gotthard_hdr.msg_type = GOTTHARD_TYPE_RES;
+    gotthard_hdr.frag_cnt = (bit<1>)1;
+    gotthard_hdr.frag_seq = (bit<1>)1;
 }
 
 register is_cached_register {

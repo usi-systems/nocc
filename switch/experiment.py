@@ -141,6 +141,8 @@ def main():
                 mac = cl['mac'] if 'mac' in cl else '00:04:00:00:00:%02x' % h,
                 sw_mac = cl['sw_mac'] if 'sw_mac' in cl else "00:aa:bb:00:00:%02x" % h,
                 delay = cl['delay'] if 'delay' in cl else args.client_delay)
+        if 'stdout_log' in cl and cl['stdout_log']:
+            host['stdout_log'] = os.path.join(conf['log_dir'], '%s.stdout.log' % host['name'])
         host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
         if os.path.exists(host['log']): os.remove(host['log'])
         host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%v', str(think_v)).replace('%c', str(req_count)).replace('%l', host['log'])
@@ -214,24 +216,32 @@ def main():
     sleep(0.5)
 
 
-    def _wait_for_client(p):
+    def _wait_for_client(p, host):
         print p.communicate()
         if p.returncode is None:
             p.wait()
             print p.communicate()
+        if 'stdoutfile' in host:
+            host['stdoutfile'].flush()
+            host['stdoutfile'].close()
+
     client_procs = []
     for host in hosts[1:]:
         h = net.get(host['name'])
         print h.name, host['cmd']
-        p = h.popen(host['cmd'], stdout=devnull)
-        if conf['sequential_clients']: _wait_for_client(p)
-        client_procs.append(p)
+        pipe_stdout_to = devnull
+        if 'stdout_log' in host:
+            host['stdoutfile'] = open(host['stdout_log'], 'w')
+            pipe_stdout_to = host['stdoutfile']
+        p = h.popen(host['cmd'], stdout=pipe_stdout_to)
+        if conf['sequential_clients']: _wait_for_client(p, host)
+        client_procs.append((p, host))
 
     if args.cli:
         CLI( net )
 
     if not conf['sequential_clients']:
-        for p in client_procs: _wait_for_client(p)
+        for p, host in client_procs: _wait_for_client(p, host)
 
     if server_proc.returncode is None:
         server_proc.send_signal(signal.SIGINT)

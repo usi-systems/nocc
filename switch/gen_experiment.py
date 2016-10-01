@@ -14,6 +14,8 @@ parser.add_argument("--req-count", "-r", type=int, help="client request count (e
 parser.add_argument("--think-time", "-t", type=float, help="client think time (s)", default=None)
 parser.add_argument("--think-var", "-v", type=float, help="variance used for generating random think time", default=None)
 parser.add_argument("--sequential-clients", help="whether to run the clients sequentially", action='store_true', default=False)
+parser.add_argument("--stdout-log", help="whether to dump the clients' STDOUT to a file", action='store_true', default=False)
+parser.add_argument("--name", type=str, help="name of experiment", required=False, default=None)
 parser.add_argument('--total-delta', help='End-to-end delay (ms) from client to server (through switch)',
                     type=int, required=False, default=None)
 parser.add_argument('--delta-ratio', help='D/d (store/client delta) ratio',
@@ -42,7 +44,7 @@ else:
 num_clients = max(args.num_clients, len(args.client_cmd))
 for n in xrange(num_clients):
     conf['clients'].append(dict(cmd=args.client_cmd[n % len(args.client_cmd)],
-              delay=client_delta))
+              delay=client_delta, stdout_log=args.stdout_log))
 
 conf['think_s'] = 0 if args.think_time is None else args.think_time
 conf['think_v'] = 0 if args.think_var is None else args.think_var
@@ -51,11 +53,13 @@ if not args.req_count is None: conf['req_count'] = args.req_count
 if args.out_dir:
     experiment_dir = os.path.abspath(args.out_dir)
 else:
+    thinkstr = '' if args.think_time is None else '%gthink%g_' % (args.think_time, args.think_var or 0)
     experiment_dir = os.path.join(os.path.abspath(args.out_parent),
-            "%sd_%sD_%dclients_%sreqs_%gthink%g_%s" % (str(client_delta), str(conf['server']['delay']),
+            "%s%sd_%sD_%dclients_%sreqs_%s%s" % ('' if args.name is None else args.name + '_',
+                str(client_delta), str(conf['server']['delay']),
                 num_clients,
-                'no' if args.req_count is None else str(args.req_count), args.think_time,
-                args.think_var, args.mode))
+                'no' if args.req_count is None else str(args.req_count),
+                thinkstr, args.mode))
 
 
 if os.path.exists(experiment_dir): raise Exception('Experiment directory already exists: %s'%experiment_dir)
