@@ -4,8 +4,8 @@ import multiprocessing
 import sys
 import numpy as np
 from os import path, listdir
-sys.path.append('../simple_store')
-from common import *
+sys.path.append('..')
+from pygotthard import *
 
 def parseLog(func, filename):
     with open(filename, 'r') as f:

@@ -21,6 +21,7 @@ import os
 import sys
 import json
 import time
+import argparse
 from sourcer import sourceFile
 
 env_vars = sourceFile('./env.sh')
@@ -34,7 +35,8 @@ from mininet.cli import CLI
 
 from p4_mininet import P4Switch, P4Host
 
-import argparse
+sys.path.append('..')
+from pygotthard import GOTTHARD_MAX_OP
 from time import sleep
 from util import waitForTcpPort
 
@@ -177,7 +179,7 @@ def main():
     with open(args.entries, 'r') as f:
         t_entries = [l.rstrip() for l in f.readlines() if l != '\n']
 
-    max_op_cnt = 4
+    max_op_cnt = GOTTHARD_MAX_OP
     if conf['switch']['mode'] != 'forward': # i.e. both early/opti abort
         for i in xrange(max_op_cnt):
             t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i+1))

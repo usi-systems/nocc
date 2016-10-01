@@ -7,7 +7,7 @@ import os
 import threading
 import pickle
 
-GOTTHARD_MAX_OP = 4
+GOTTHARD_MAX_OP = 10
 
 TYPE_REQ = 0
 TYPE_RES = 1

@@ -284,15 +284,20 @@ class BitKeyMap:
     """Map a string to a limited number of bits"""
 
     def __init__(self, bits=16, load=None):
-        self.max_key = 2 ** bits
+        self.useBits(bits)
         self.mapping = {}
         self.unused_keys = [] # keys are added to this as they are deleted
         self.last_key = 0
         self.rwlock = ReadWriteLock()
 
-        if load and type(load) is str:
-            with open(load, 'r') as f:
-                self.load(f)
+        if load: self.load(load)
+
+    def useBits(self, bits):
+        self.bits = bits
+        self.max_key = 2 ** bits
+
+    def size(self):
+        return len(self.mapping)
 
     def get(self, key_string):
         self.rwlock.acquire_read()
@@ -323,16 +328,23 @@ class BitKeyMap:
 
     def free(self, key_string):
         self.rwlock.acquire_write()
-        self.unused_keys.append(self.mapping[key_string])
-        del self.mapping[key_string]
+        if key_string in self.mapping:
+            self.unused_keys.append(self.mapping[key_string])
+            del self.mapping[key_string]
         self.rwlock.release_write()
 
-    def dump(self, f):
+    def dump(self, file_or_str):
         d = dict(max_key=self.max_key, mapping=self.mapping, unused_keys=self.unused_keys, last_key=self.last_key)
-        pickle.dump(d, f)
+        if type(file_or_str) is str:
+            with open(file_or_str, 'w') as f:
+                pickle.dump(d, f)
+        else: pickle.dump(d, file_or_str)
 
-    def load(self, f):
-        d = pickle.load(f)
+    def load(self, file_or_str):
+        if type(file_or_str) is str:
+            with open(file_or_str, 'r') as f:
+                d = pickle.load(f)
+        else: d = pickle.load(file_or_str)
         self.max_key, self.mapping, self.unused_keys, self.last_key = d['max_key'], d['mapping'], d['unused_keys'], d['last_key']
 
 

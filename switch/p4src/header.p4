@@ -34,7 +34,7 @@ header_type udp_t {
     }
 }
 
-#define GOTTHARD_HDR_LEN 11
+#define GOTTHARD_HDR_LEN 13
 header_type gotthard_hdr_t {
     fields {
         bit<1> msg_type;
@@ -42,6 +42,8 @@ header_type gotthard_hdr_t {
         bit<6> unused_flags;
         bit<32> cl_id;
         bit<32> req_id;
+        bit<8> frag_seq;
+        bit<8> frag_cnt;
         bit<8> status;
         bit<8> op_cnt;
     }

@@ -14,6 +14,9 @@ class SwitchCache:
         self.values = {}
         self.optimistic_values = {}
 
+    def clear(self):
+        self.values, self.optimistic_values = {}, {}
+
     # only a response from the store should update the cache
     def insert(self, key=None, value=None, o=None):
         if o:
@@ -77,9 +80,10 @@ class StorePort(asyncore.dispatcher):
 
 class SoftwareSwitch:
 
-    def __init__(self, store_addr=None, bind_addr=None, mode='early_abort',
+    def __init__(self, store_addr=None, bind_addr=None, mode='early_abort', verbosity=0,
             store_threads=4, client_threads=4, store_delay=None, client_delay=None):
         self.mode = mode
+        self.verbosity = verbosity
         self.store_delay = store_delay
         self.client_delay = client_delay
 
@@ -130,6 +134,10 @@ class SoftwareSwitch:
                 self._sendToStore(req)
                 continue
 
+            if req.flags.reset:
+                if self.verbosity > 0: print "Resetting cache"
+                self.cache.clear()
+
             rb_ops = [o for o in req.ops if o.type == TXN_VALUE] # read before
             r_ops = [o for o in req.ops if o.type == TXN_READ]
             w_ops = [o for o in req.ops if o.type == TXN_WRITE]
@@ -175,11 +183,9 @@ class SoftwareSwitch:
                 self._sendToClient(res)
                 continue
 
-            # Update our cache, if necessary:
-            if res.status == STATUS_OK and len(res.ops) > 0:
-                updates = [o for o in res.ops if o.type == TXN_UPDATED]
-                for o in updates:
-                    self.cache.insert(o=o)
+            # Update our cache with any VALUE op from the store
+            for o in [o for o in res.ops if o.type == TXN_VALUE]:
+                self.cache.insert(o=o)
 
             self._sendToClient(res)
 
@@ -192,12 +198,14 @@ if __name__ == '__main__':
     parser.add_argument("--client-delta", "-d", help="delay (s)  sending/receiving with client",
                         type=float, required=False, default=None)
     parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
+    parser.add_argument("--verbosity", "-v", type=int, help="set verbosity level", default=0, required=False)
     parser.add_argument("store_host", type=str, help="store hostname")
     parser.add_argument("store_port", type=int, help="store port")
     args = parser.parse_args()
 
     store_addr = (args.store_host, args.store_port)
     sw = SoftwareSwitch(store_addr=store_addr,
+                        verbosity=args.verbosity,
                         bind_addr=('', args.port),
                         store_delay=args.server_delta,
                         client_delay=args.client_delta,

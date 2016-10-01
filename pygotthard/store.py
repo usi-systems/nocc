@@ -41,6 +41,7 @@ signal.signal(signal.SIGINT, handler)
 class RecvQueue:
     clients = {}
 
+    # TODO: prune fragmented message queues with missing frags
     def pushpop(self, req):
         if req.frag_cnt == 1:
             return req.ops
