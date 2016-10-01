@@ -31,7 +31,13 @@ status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
 
 
 class GotthardAbortException(Exception):
-    pass
+    def __init__(self, from_switch=None, optimistic=None):
+        super(GotthardAbortException, self).__init__('')
+        self.from_switch, self.optimistic = from_switch, optimistic
+
+    def __str__(self):
+        return "Gotthard%sAbortFrom%s" % ('Optimistic' if self.optimistic else '',
+                                        'Switch' if self.from_switch else 'Store')
 
 # TODO: use this instead: http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
 class BitFlags:
