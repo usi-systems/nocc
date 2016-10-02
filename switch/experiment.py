@@ -145,7 +145,7 @@ def main():
             host['stdout_log'] = os.path.join(conf['log_dir'], '%s.stdout.log' % host['name'])
         host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
         if os.path.exists(host['log']): os.remove(host['log'])
-        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%v', str(think_v)).replace('%c', str(req_count)).replace('%l', host['log'])
+        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%v', str(think_v)).replace('%c', str(req_count)).replace('%e', conf['dir']).replace('%l', host['log'])
         hosts.append(host)
 
     topo = SingleSwitchTopo(args.behavioral_exe,
