@@ -162,7 +162,7 @@ control ingress {
     if (valid(ipv4)) {
         if (valid(gotthard_hdr)) {
             if (gotthard_hdr.msg_type == GOTTHARD_TYPE_REQ and
-                gotthard_hdr.frag_cnt == 1
+                gotthard_hdr.frag_cnt == (bit<8>)1
                 ) {
 
                 apply(t_req_pass1);
@@ -185,7 +185,7 @@ control ingress {
                     apply(t_opti_update);
                 }
             }
-            else {
+            else if (gotthard_hdr.msg_type == GOTTHARD_TYPE_RES) {
                 apply(t_store_update);
             }
         }

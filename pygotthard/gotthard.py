@@ -214,7 +214,7 @@ class Store:
 
 class GotthardClient:
 
-    def __init__(self, store_addr=None, logger=None, log_filename=None, cl_id=None):
+    def __init__(self, store_addr=None, logger=None, log_filename=None, log_dir=None, cl_id=None):
         self.store_addr = store_addr
         self.resolved_store_addr = None
         self.recv_queue = {}
@@ -223,6 +223,7 @@ class GotthardClient:
         self.cl_id = cl_id
         self.log = logger
         self.log_filename = log_filename
+        self.log_dir = log_dir
 
     def open(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -235,6 +236,7 @@ class GotthardClient:
         if not self.cl_id:
             self.cl_id = abs(hash(self.cl_name)) % 2**32
         if self.log_filename: self.log = GotthardLogger(self.log_filename)
+        elif self.log_dir: self.log = GotthardLogger(os.path.join(self.log_dir, 'cl%d.log'%self.cl_id))
         self.closed = False
         return self
 

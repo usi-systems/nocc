@@ -65,8 +65,8 @@ def getServerStats(filename):
     return st
 
 
-def getExperimentStats(experiment_dir):
-    experiment_dir = path.abspath(experiment_dir)
+def getExperimentStats(args):
+    experiment_dir = path.abspath(args.dir)
     log_dir = path.join(experiment_dir, "logs")
     with open(path.join(experiment_dir, "experiment.json"), 'r') as f:
         conf = json.load(f)
@@ -126,6 +126,7 @@ if __name__ == '__main__':
     parser.add_argument("dir", type=str, help="experiment directory", nargs='*')
     parser.add_argument("--jobs", "-j", type=int, action="store", default=None, help="number of parallel jobs")
     parser.add_argument("--json", "-J", action="store_true", help="output as JSON")
+    parser.add_argument("--tpcc", "-t", action="store_true", help="parse TPCC data from client STDOUT log file")
     parser.add_argument("--header", "-H", action="store_true", help="print header")
     args = parser.parse_args()
 
@@ -136,9 +137,9 @@ if __name__ == '__main__':
 
     if n_job > 1:
         p = multiprocessing.Pool(n_job)
-        summaries = p.map(getExperimentStats, args.dir)
+        summaries = p.map(getExperimentStats, args)
     else:
-        summaries = map(getExperimentStats, args.dir)
+        summaries = map(getExperimentStats, args)
 
     if args.json:
         print json.dumps(summaries, indent=1, sort_keys=True)

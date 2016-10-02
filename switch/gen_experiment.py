@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("--out-dir", "-o", type=str, help="directory to initialize experiment in")
 group.add_argument("--out-parent", "-p", type=str, help="parent directory to initialize experiment in, with generated name")
-parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=1)
+parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=None)
 parser.add_argument("--client-cmd", "-c", type=str, help="command to execute on clients", nargs='*', required=True)
 parser.add_argument("--server-cmd", "-s", type=str, help="command to execute on server", required=True)
 parser.add_argument("--req-count", "-r", type=int, help="client request count (e.g. # of inc. transaction)", default=None)
@@ -33,33 +33,40 @@ conf['server'] = dict(cmd=args.server_cmd)
 conf['switch'] = dict(mode=args.mode)
 conf['sequential_clients'] = args.sequential_clients
 
+descriptor = []
+if args.name: descriptor.append('%s' % args.name)
+
 if args.total_delta:
     client_delta = float(args.total_delta) / (args.delta_ratio + 1)
     conf['server']['delay'] = args.total_delta - client_delta
+    descriptor.append('%gratio_%dms' % (args.delta_ratio, args.total_delta))
 else:
     conf['server']['delay'] = args.server_delta
     client_delta = args.client_delta
+    descriptor.append('%gd_%gD' % (args.client_delta, args.server_delta))
 
-
-num_clients = max(args.num_clients, len(args.client_cmd))
+num_clients = max(args.num_clients or 1, len(args.client_cmd))
 for n in xrange(num_clients):
     conf['clients'].append(dict(cmd=args.client_cmd[n % len(args.client_cmd)],
               delay=client_delta, stdout_log=args.stdout_log))
 
 conf['think_s'] = 0 if args.think_time is None else args.think_time
 conf['think_v'] = 0 if args.think_var is None else args.think_var
-if not args.req_count is None: conf['req_count'] = args.req_count
+
+if args.num_clients is not None: descriptor.append('%dclients' % args.num_clients)
+if args.think_time is not None: descriptor.append('%dt' % args.think_time)
+if args.think_var is not None: descriptor.append('%dtv' % args.think_var)
+
+if args.req_count is not None:
+    conf['req_count'] = args.req_count
+    descriptor.append('%dreqs' % args.req_count)
+
+descriptor.append(args.mode)
 
 if args.out_dir:
     experiment_dir = os.path.abspath(args.out_dir)
 else:
-    thinkstr = '' if args.think_time is None else '%gthink%g_' % (args.think_time, args.think_var or 0)
-    experiment_dir = os.path.join(os.path.abspath(args.out_parent),
-            "%s%sd_%sD_%dclients_%sreqs_%s%s" % ('' if args.name is None else args.name + '_',
-                str(client_delta), str(conf['server']['delay']),
-                num_clients,
-                'no' if args.req_count is None else str(args.req_count),
-                thinkstr, args.mode))
+    experiment_dir = os.path.join(os.path.abspath(args.out_parent), '_'.join(descriptor))
 
 
 if os.path.exists(experiment_dir): raise Exception('Experiment directory already exists: %s'%experiment_dir)
