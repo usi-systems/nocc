@@ -127,50 +127,56 @@ class SoftwareSwitch:
         while True:
             req = self.req_queue.get()
             if req == False: break # it's time to stop
+            self._handleClientReq(req)
 
-            if self.client_delay: sleep(self.client_delay)
+    def _handleClientReq(self, req):
+        if self.client_delay: sleep(self.client_delay)
 
-            if self.mode == 'forward':
-                self._sendToStore(req)
-                continue
+        if self.mode == 'forward':
+            return self._sendToStore(req)
 
-            if req.flags.reset:
-                if self.verbosity > 0: print "Resetting cache"
-                self.cache.clear()
+        if req.frag_cnt > 1: # we can't do anything with only part of the TXN
+            return self._sendToStore(req)
 
-            rb_ops = [o for o in req.ops if o.type == TXN_VALUE] # read before
-            r_ops = [o for o in req.ops if o.type == TXN_READ]
-            w_ops = [o for o in req.ops if o.type == TXN_WRITE]
+        if req.flags.reset:
+            if self.verbosity > 0: print "Resetting cache"
+            self.cache.clear()
 
-            if len(r_ops) > 0: # Switch cannot satisfy R operations
-                self._sendToStore(req)
-                continue
+        rb_ops = [o for o in req.ops if o.type == TXN_VALUE] # read before
+        r_ops = [o for o in req.ops if o.type == TXN_READ]
+        w_ops = [o for o in req.ops if o.type == TXN_WRITE]
 
-            # Check all the read-befores
-            was_optimistic = False
-            bad_reads = []
-            for rb in rb_ops:
-                if self.mode == 'optimistic_abort' and rb.key in self.cache.optimistic_values:
-                    if rb.value != self.cache.optimistic_values[rb.key]:
-                        was_optimistic = True
-                        bad_reads.append(self._op(o=rb, opti=True))
-                elif rb.key in self.cache.values and rb.value != self.cache.values[rb.key]:
+        if len(r_ops) > 0: # Switch cannot satisfy R operations
+            return self._sendToStore(req)
+
+        # Check all the read-befores
+        was_optimistic = False
+        bad_reads = []
+        for rb in rb_ops:
+            if self.mode == 'optimistic_abort' and rb.key in self.cache.optimistic_values:
+                if rb.value != self.cache.optimistic_values[rb.key]:
+                    was_optimistic = True
                     bad_reads.append(self._op(o=rb, opti=True))
+            elif rb.key in self.cache.values:
+                if rb.value != self.cache.values[rb.key]:
+                    bad_reads.append(self._op(o=rb, opti=True))
+            else:
+                # cache miss; we can't do anything smart with this TXN
+                return self._sendToStore(req)
 
-            if len(bad_reads) > 0:
-                self._sendToClient(TxnMsg(replyto=req, ops=bad_reads, from_switch=1,
+        if len(bad_reads) > 0:
+            return self._sendToClient(TxnMsg(replyto=req, ops=bad_reads, from_switch=1,
                     status=STATUS_OPTIMISTIC_ABORT if was_optimistic else STATUS_ABORT))
-                continue
 
-            if len(rb_ops) and len(rb_ops) == len(req.ops): # the client only issued some RB() to check its state
-                self._sendToClient(TxnMsg(replyto=req, from_switch=1, status=STATUS_OK))
-                continue
+        # the client only issued some RB() to check its state
+        if len(rb_ops) and len(rb_ops) == len(req.ops):
+            return self._sendToClient(TxnMsg(replyto=req, from_switch=1, status=STATUS_OK))
 
-            # Update the optimistic cache with write values
-            if self.mode == 'optimistic_abort':
-                for o in w_ops: self.cache.optimisticInsert(o=o)
+        # Update the optimistic cache with write values
+        if self.mode == 'optimistic_abort':
+            for o in w_ops: self.cache.optimisticInsert(o=o)
 
-            self._sendToStore(req) # forward the packet
+        self._sendToStore(req) # just forward the packet
 
     def _storeHandler(self):
         while True:
@@ -184,7 +190,7 @@ class SoftwareSwitch:
                 continue
 
             # Update our cache with any VALUE op from the store
-            for o in [o for o in res.ops if o.type == TXN_VALUE]:
+            for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
                 self.cache.insert(o=o)
 
             self._sendToClient(res)

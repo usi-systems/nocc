@@ -51,8 +51,8 @@ action do_direction_swap (in bit<8> udp_payload_size) { // return the packet to 
 
     gotthard_hdr.from_switch = (bit<1>)1;
     gotthard_hdr.msg_type = GOTTHARD_TYPE_RES;
-    gotthard_hdr.frag_cnt = (bit<1>)1;
-    gotthard_hdr.frag_seq = (bit<1>)1;
+    gotthard_hdr.frag_cnt = (bit<8>)1;
+    gotthard_hdr.frag_seq = (bit<8>)1;
 }
 
 register is_cached_register {
@@ -161,7 +161,9 @@ table send_frame {
 control ingress {
     if (valid(ipv4)) {
         if (valid(gotthard_hdr)) {
-            if (gotthard_hdr.msg_type == GOTTHARD_TYPE_REQ) {
+            if (gotthard_hdr.msg_type == GOTTHARD_TYPE_REQ and
+                gotthard_hdr.frag_cnt == 1
+                ) {
 
                 apply(t_req_pass1);
 

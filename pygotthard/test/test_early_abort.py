@@ -67,13 +67,26 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
 
     # Try a bad RB to get their values from cache
     res = cl.req([RB(1, 'wrong'), RB(2, 'wrong')])
-    assert(res.status == STATUS_ABORT)
     assert(res.flags.from_switch == 1) # should be cached on switch
+    assert(res.status == STATUS_ABORT)
     assert(len(res.ops) == 2)
     assert(res.op(k=1).value.rstrip('\0') == 'b')
     assert(res.op(k=2).value.rstrip('\0') == 'b')
 
-    # cleanup
-    for k in xrange(1, 3):
-        res = cl.req(W(k, ''))
-        assert(res.status == STATUS_OK)
+    # If the first frag is OK, but not the second, the switch should not say OK
+    res = cl.req([W(i+1, 'good') for i in xrange(GOTTHARD_MAX_OP+1)])
+    assert res.status == STATUS_OK, "add some initial values"
+    frag1 = [RB(i+1, 'good') for i in xrange(GOTTHARD_MAX_OP)] # OK
+    frag2 = [RB(GOTTHARD_MAX_OP+1, 'bad')] # not OK
+    ops = frag1 + frag2 # together, they should abort
+    res = cl.req(ops)
+    assert res.status == STATUS_ABORT
+    assert res.op(k=GOTTHARD_MAX_OP+1).value.rstrip('\0') == 'good'
+
+    # Cleanup: send reset flag to store
+    res = cl.reset()
+    assert res.status == STATUS_OK
+    assert len(res.ops) == 0
+    res = cl.req(R(1))
+    assert res.status == STATUS_OK
+    assert res.op(k=1).value.rstrip('\0') == ''

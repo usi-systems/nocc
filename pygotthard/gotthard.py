@@ -306,6 +306,10 @@ class GotthardClient:
         if res.req_id not in self.recv_queue:
             self.recv_queue[res.req_id] = dict(ready=False,q=[])
         self.recv_queue[res.req_id]['q'].append(res)
+        if not len(self.recv_queue[res.req_id]['q']) <= res.frag_cnt:
+            print [str(m) for m in self.recv_queue[res.req_id]['q']]
+            print len(self.recv_queue[res.req_id]['q']), res.frag_cnt
+        assert len(self.recv_queue[res.req_id]['q']) <= res.frag_cnt
         if len(self.recv_queue[res.req_id]['q']) == res.frag_cnt:
             self.recv_queue[res.req_id]['ready'] = True
 
@@ -325,8 +329,12 @@ class GotthardClient:
         if res: return res
 
         while True:
-            data, fromaddr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
-            assert(fromaddr == self.resolved_store_addr)
+            try:
+                data, fromaddr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
+                assert(fromaddr == self.resolved_store_addr)
+            except:
+                print 'Waiting for req_id:', req_id
+                raise
             res = TxnMsg(binstr=data)
             self._log("received", res=res)
             self._push_recvqueue(res)
