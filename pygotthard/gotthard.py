@@ -5,6 +5,7 @@ import json
 import time
 import os
 import threading
+from base64 import b64encode
 import pickle
 
 GOTTHARD_MAX_OP = 10
@@ -38,6 +39,10 @@ class GotthardAbortException(Exception):
     def __str__(self):
         return "Gotthard%sAbortFrom%s" % ('Optimistic' if self.optimistic else '',
                                         'Switch' if self.from_switch else 'Store')
+
+def printable(s):
+    return len(s)+2 == len(repr(s))
+
 
 # TODO: use this instead: http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
 class BitFlags:
@@ -79,7 +84,7 @@ class TxnOp:
             assert(t in [TXN_NOP, TXN_VALUE, TXN_READ, TXN_WRITE, TXN_UPDATED])
             assert(type(key) is int)
             assert(type(value) is str)
-            self.type, self.key, self.value = t, key, value
+            self.type, self.key, self.value = t, key, value.ljust(VALUE_SIZE, '\0')
 
     def unpack(self, binstr):
         if len(binstr) < TXNOP_SIZE: raise Exception("TxnOp should be at least %d bytes, but received %d" % (TXNOP_SIZE, len(binstr)))
@@ -97,7 +102,8 @@ class TxnOp:
     def __iter__(self):
         yield 't', txn_op_type_to_string[self.type]
         yield 'k', self.key
-        yield 'v', self.value.rstrip('\0')
+        v = self.value.rstrip('\0')
+        yield 'v', v if printable(v) else b64encode(v)
 
 
 txnhdr_fmt = '!B I i B B B B'

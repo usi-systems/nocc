@@ -5,6 +5,7 @@ import datetime
 import re
 from ReadWriteLock import ReadWriteLock
 import threading
+from pygotthard import VALUE_SIZE
 
 MAX_STR_SIZE=12
 
@@ -53,7 +54,7 @@ class SerializableRecord(dict):
     def pack(self):
         vals = [self._fmtfield(f) for f in self.pack_fields]
         try:
-            return self.struct.pack(*vals)
+            return self.struct.pack(*vals).ljust(VALUE_SIZE, '\0')
         except:
             print self.__class__.__name__
             print self.fieldnames, self.fmt

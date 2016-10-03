@@ -23,7 +23,7 @@ def recover(filename):
     with open(args.recover, 'r') as f:
         store.load(f)
     if args.verbosity > 0:
-        print "Recovered objects from %s" % filename
+        print "Recovered %d objects from %s" % (len(store.values), filename)
 
 if args.recover: recover(args.recover)
 
@@ -92,6 +92,7 @@ while True:
     if args.verbosity > 1: print "=>", req
 
     if req.flags.reset:
+        if args.verbosity > 0: print "Removing all %d objects" % len(store.values)
         store.clear()
         if args.recover: recover(args.recover)
         status, ops = STATUS_OK, []
