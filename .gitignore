@@ -91,3 +91,4 @@ ENV/
 *.swp
 switch/*.pcap
 switch/gotthard_router.json
+*.generated.p4
