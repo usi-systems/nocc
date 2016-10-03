@@ -1,36 +1,25 @@
 # Gotthard P4 Implementation
 
-## Running
-Start the mininet with the switch:
+## Tesing
 
-    ./run_demo.sh
+Generate some experiments to test normal forwarding, early abort and optimistic abort modes of the switch:
 
-And in another terminal, add the table entries:
 
-    ./add_entries.sh
+    gen_experiment.py --num-clients 1 --sequential-clients \
+        -c "../pygotthard/test/test_basic.py -l %l %h %p" \
+        --server-cmd "../pygotthard/store.py -l %l -p %p" \
+        --client-delta 1 --server-delta 2 --mode forward --out-dir test_basic
+    gen_experiment.py --num-clients 1 --sequential-clients \
+        -c "../pygotthard/test/test_early_abort.py -l %l %h %p" \
+        --server-cmd "../pygotthard/store.py -l %l -p %p" \
+        --client-delta 1 --server-delta 2 --mode early_abort --out-dir test_early
+    gen_experiment.py --num-clients 1 --sequential-clients \
+        -c "../pygotthard/test/test_opti_abort.py -l %l %h %p" \
+        --server-cmd "../pygotthard/store.py -l %l -p %p" \
+        --client-delta 1 --server-delta 50 --mode optimistic_abort --out-dir test_opti
 
-## Read/Write Example
-After starting the mininet, use the prompt to start the store on `h2`:
+Then, run the experiments:
 
-    mininet> h2 python ../simple_store/store.py -p 9999 &
-
-Then, add a key, read it and then read/write it:
-
-    mininet> h1 ../simple_store/write.py h2 9999 1 a
-    STATUS_OK
-    mininet> h1 ../simple_store/read.py h2 9999 1
-    1 a
-    mininet> h1 ../simple_store/readwrite.py h2 9999 1 1 1 b
-    STATUS_OK
-    mininet> h1 ../simple_store/readwrite.py h2 9999 1 1 1 c
-    STATUS_REJECT
-    mininet> 
-
-## Checking P4 registers
-Read the version register for key 1:
-
-    ./read_register.sh version_register 1
-
-Read the value register for key 1:
-
-    ./read_register.sh value_register 1
+    ./run_experiment.sh test_basic
+    ./run_experiment.sh test_early
+    ./run_experiment.sh test_opti
