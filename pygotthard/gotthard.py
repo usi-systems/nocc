@@ -26,6 +26,8 @@ TXN_UPDATED = 4 # response: the object was just updated to this value
 
 txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
+INTER_MSG_SEND_WAIT = 0.00015
+
 VALUE_SIZE = 128
 
 status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
@@ -190,7 +192,8 @@ class Store:
         # Check that the read-befores are valid:
         bad_reads = [self._get(o=o) for o in rb_ops if o.value != self._val(o.key)]
         if len(bad_reads) > 0:
-            undo_w = [self._get(o=o) for o in w_ops]
+            # also, invalidate any optimistic writes that may be cached at the switch:
+            undo_w = [self._get(o=o) for o in w_ops if o.key not in [b.key for b in bad_reads]]
             return (STATUS_ABORT, bad_reads + undo_w)
 
         # Process all the write operations:
@@ -302,6 +305,7 @@ class GotthardClient:
             req_data = req.pack()
             self.sock.sendto(req_data, self.store_addr)
             self._log("sent", req=req)
+            if len(reqs) > 2 and INTER_MSG_SEND_WAIT: time.sleep(INTER_MSG_SEND_WAIT)
 
     def _reassemble(self, resps):
         assert len(resps)
