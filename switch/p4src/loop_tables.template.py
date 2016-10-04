@@ -102,10 +102,12 @@ tmpl_do_store_update = lambda idx: """
 action do_store_update%i() {
     %prev
     value_register[gotthard_op[%i].key] =
-        gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+        (gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
+         gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             gotthard_op[%i].value : value_register[gotthard_op[%i].key];
     is_cached_register[gotthard_op[%i].key] =
-        gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE ?
+        (gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
+         gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[%i].key];
     is_opti_cached_register[gotthard_op[%i].key] = (bit<1>)0;
 }
