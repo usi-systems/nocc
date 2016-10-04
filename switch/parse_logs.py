@@ -165,15 +165,12 @@ def getExperimentStats(experiment_dir):
     experiment_params = dict(client_d=conf['clients'][0]['delay'],
                 store_D=conf['server']['delay'],
                 total_delta=total_delta,
+                delta_ratio=conf['delta_ratio'] if 'delta_ratio' in conf else float(total_delta)/conf['clients'][0]['delay'],
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
                 mode=conf['switch']['mode'])
     if 'req_count' in conf: experiment_params['req_count'] = conf['req_count']
-    D, d = float(experiment_params['store_D']), float(experiment_params['client_d'])
-    #experiment_params['delta_ratio'] = D / d
-    #experiment_params['delta_diff_ratio'] = (D-d) / (D+d)
-    experiment_params['client_d_ratio'] = d / (D+d)
 
 
     return dict(summary, **experiment_params)
