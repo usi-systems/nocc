@@ -18,8 +18,8 @@ parser.add_argument("--stdout-log", help="whether to dump the clients' STDOUT to
 parser.add_argument("--name", type=str, help="name of experiment", required=False, default=None)
 parser.add_argument('--total-delta', help='End-to-end delay (ms) from client to server (through switch)',
                     type=int, required=False, default=None)
-parser.add_argument('--delta-ratio', help='D/d (store/client delta) ratio',
-                    type=float, required=False, default=1)
+parser.add_argument('--delta-ratio', help='the client delta\'s fraction of the total delta. Between (0.0, 1.0)',
+                    type=float, required=False, default=0.5)
 parser.add_argument('--server-delta', help='Delay (ms) between switch and server',
                     type=int, required=False, default=0)
 parser.add_argument('--client-delta', help='Delay (ms) between switch and client',
@@ -37,9 +37,12 @@ descriptor = []
 if args.name: descriptor.append('%s' % args.name)
 
 if args.total_delta:
-    client_delta = float(args.total_delta) / (args.delta_ratio + 1)
+    assert 0 < args.delta_ratio and args.delta_ratio < 1
+    client_delta = args.total_delta * args.delta_ratio
+    conf['delta_ratio'] = args.delta_ratio
+    conf['total_delta'] = args.total_delta
     conf['server']['delay'] = args.total_delta - client_delta
-    descriptor.append('%gratio_%dms' % (args.delta_ratio, args.total_delta))
+    descriptor.append('%dms_%gratio' % (args.total_delta, args.delta_ratio))
 else:
     conf['server']['delay'] = args.server_delta
     client_delta = args.client_delta

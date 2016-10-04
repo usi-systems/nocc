@@ -190,7 +190,8 @@ class Store:
         # Check that the read-befores are valid:
         bad_reads = [self._get(o=o) for o in rb_ops if o.value != self._val(o.key)]
         if len(bad_reads) > 0:
-            return (STATUS_ABORT, bad_reads)
+            undo_w = [self._get(o=o) for o in w_ops]
+            return (STATUS_ABORT, bad_reads + undo_w)
 
         # Process all the write operations:
         for o in w_ops:
