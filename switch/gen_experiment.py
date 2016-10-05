@@ -6,13 +6,11 @@ import os
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("--out-dir", "-o", type=str, help="directory to initialize experiment in")
-group.add_argument("--out-parent", "-p", type=str, help="parent directory to initialize experiment in, with generated name")
+group.add_argument("--out-parent", type=str, help="parent directory to initialize experiment in, with generated name")
 parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=None)
 parser.add_argument("--client-cmd", "-c", type=str, help="command to execute on clients", nargs='*', required=True)
 parser.add_argument("--server-cmd", "-s", type=str, help="command to execute on server", required=True)
 parser.add_argument("--req-count", "-r", type=int, help="client request count (e.g. # of inc. transaction)", default=None)
-parser.add_argument("--think-time", "-t", type=float, help="client think time (s)", default=None)
-parser.add_argument("--think-var", "-v", type=float, help="variance used for generating random think time", default=None)
 parser.add_argument("--sequential-clients", help="whether to run the clients sequentially", action='store_true', default=False)
 parser.add_argument("--stdout-log", help="whether to dump the clients' STDOUT to a file", action='store_true', default=False)
 parser.add_argument("--name", type=str, help="name of experiment", required=False, default=None)
@@ -25,6 +23,8 @@ parser.add_argument('--server-delta', help='Delay (ms) between switch and server
 parser.add_argument('--client-delta', help='Delay (ms) between switch and client',
                     type=int, required=False, default=0)
 parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
+parser.add_argument("--param", "-p", help='Set parameters. E.g.: -p duration=25 -p count=23', action='append',
+        type=lambda kv: kv.split("="), dest='parameters')
 args = parser.parse_args()
 
 conf = dict(clients=[])
@@ -48,18 +48,16 @@ else:
     client_delta = args.client_delta
     descriptor.append('%gd_%gD' % (args.client_delta, args.server_delta))
 
+conf['parameters'] = dict(args.parameters if args.parameters else [])
+for k,v in conf['parameters'].items():
+    descriptor.append(str(v)+str(k))
+
 num_clients = max(args.num_clients or 1, len(args.client_cmd))
 for n in xrange(num_clients):
     conf['clients'].append(dict(cmd=args.client_cmd[n % len(args.client_cmd)],
               delay=client_delta, stdout_log=args.stdout_log))
 
-conf['think_s'] = 0 if args.think_time is None else args.think_time
-conf['think_v'] = 0 if args.think_var is None else args.think_var
-
 if args.num_clients is not None: descriptor.append('%dclients' % args.num_clients)
-if args.think_time is not None: descriptor.append('%dt' % args.think_time)
-if args.think_var is not None: descriptor.append('%dtv' % args.think_var)
-
 if args.req_count is not None:
     conf['req_count'] = args.req_count
     descriptor.append('%dreqs' % args.req_count)

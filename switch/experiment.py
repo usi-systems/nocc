@@ -88,6 +88,9 @@ class SingleSwitchTopo(Topo):
             self.addLink(host, switch, delay="%dms"%h['delay'])
 
 
+def fmtStr(tmpl, params):
+    return reduce(lambda s, p: s.replace('%'+p[0]+'%', str(p[1])), params.items(), tmpl)
+
 def main():
     if args.config:
         with open(args.config, 'r') as f:
@@ -110,12 +113,12 @@ def main():
 
     hosts = []
     srv = conf['server']
+
+    params = dict(conf['parameters'].items())
+
     server_addr = srv['addr'] if 'addr' in srv else "10.0.0.10"
     server_port = srv['port'] if 'port' in srv else "9999"
 
-    default_think_s = conf['think_s'] if 'think_s' in conf else 0
-    default_think_v = conf['think_v'] if 'think_v' in conf else 0
-    default_req_count = conf['req_count'] if 'req_count' in conf else 1
 
     server_log = os.path.join(conf['log_dir'], 'server.log')
     if os.path.exists(server_log): os.remove(server_log)
@@ -126,14 +129,11 @@ def main():
             mac = srv['mac'] if 'mac' in srv else '00:04:00:00:00:00',
             sw_mac = srv['sw_mac'] if 'sw_mac' in srv else "00:aa:bb:00:00:00",
             delay = srv['delay'] if 'delay' in srv else args.server_delay,
-            cmd = srv['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%l', server_log)
+            cmd = fmtStr(srv['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%l', server_log), params)
             ))
     for n, cl in enumerate(conf['clients']):
         assert(type(cl) is dict and 'cmd' in cl)
         h = n + 1
-        think_s = cl['think_s'] if 'think_s' in cl else default_think_s
-        think_v = cl['think_v'] if 'think_v' in cl else default_think_v
-        req_count = cl['req_count'] if 'req_count' in cl else default_req_count
         host = dict(
                 name = cl['name'] if 'name' in cl else 'h%d' % (h + 1),
                 ip = cl['ip'] if 'ip' in cl else "10.0.%d.10" % h,
@@ -145,7 +145,8 @@ def main():
             host['stdout_log'] = os.path.join(conf['log_dir'], '%s.stdout.log' % host['name'])
         host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
         if os.path.exists(host['log']): os.remove(host['log'])
-        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%t', str(think_s)).replace('%v', str(think_v)).replace('%c', str(req_count)).replace('%e', conf['dir']).replace('%l', host['log'])
+        host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%e', conf['dir']).replace('%l', host['log'])
+        host['cmd'] = fmtStr(host['cmd'], params)
         hosts.append(host)
 
     topo = SingleSwitchTopo(args.behavioral_exe,
