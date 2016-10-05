@@ -14,9 +14,15 @@ args = parser.parse_args()
 tsv_fields = ['msg_type', 'cl_id', 'req_id', 'frag_seq', 'frag_cnt', 'op_cnt', 'rb_cnt', 'r_cnt', 'w_cnt']
 
 def parseFile(f):
+    line_num = 0
     for line in f.readlines():
+        line_num += 1
         line = unicode(line, errors='replace')
-        e = json.loads(line)
+        try:
+            e = json.loads(line)
+        except:
+            sys.stderr.write("JSON parse error on line %s:%d\n" % (f.name, line_num))
+            raise
         #e = json.loads(line, encoding='ascii')
         if 'req' not in e and 'res' not in e: continue
         msg_type = 'req' if 'req' in e else 'res'
