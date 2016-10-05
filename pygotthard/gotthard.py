@@ -24,11 +24,13 @@ TXN_WRITE   = 2 # request: write this value to the object
 TXN_VALUE   = 3 # fact: this is what (I think) the value is
 TXN_UPDATED = 4 # response: the object was just updated to this value
 
+
 txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
 INTER_MSG_SEND_WAIT = 0.00015
 
 VALUE_SIZE = 128
+NULL_VALUE = '\0'*VALUE_SIZE
 
 status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
 
@@ -174,7 +176,7 @@ class Store:
         self.values, self.sequences, self.seq = {}, {}, 0
 
     def _val(self, key):
-        return self.values[key] if key in self.values else ''
+        return self.values[key] if key in self.values else NULL_VALUE
 
     def _get(self, o=None, k=None, t=TXN_VALUE):
         assert(k or (o and o.key))
