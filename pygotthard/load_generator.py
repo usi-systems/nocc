@@ -24,7 +24,7 @@ class TxnFactory:
     def _makeOp(self, op_tuple):
         op_name, key = op_tuple[:2]
         value = op_tuple[2] if len(op_tuple) > 2 else ''
-        if value.upper() == 'RAND': value = str(choice([chr(c) for c in xrange(97, 123)]))
+        if value.upper() == 'RND': value = str(choice([chr(c) for c in xrange(97, 123)]))
         return TxnOp(key=int(key), value=value, t=op_name_to_type[op_name])
 
     def _makeTxn(self, tmpl):
@@ -78,16 +78,24 @@ if __name__ == '__main__':
     parser.add_argument("--pdf", "-p", type=lambda s: map(float, s.split(',')), help="Probability of each transaction. Each within [0.0, 1.0]",
             default=[0.85, 0.15])
     parser.add_argument("--transactions", "-T", type=lambda s: s.split('|'), help="Transactions to execute", required=False,
-            default=['R(1)', 'A(1, RAND) W(1, RAND)'])
+            default=['R(1)', 'A(1, RND) W(1, RND)'])
     args = parser.parse_args()
 
     store_addr = (args.host, args.port)
 
     logger = GotthardLogger(args.log) if args.log else None
 
+    pdf = args.pdf
+    missing_p = len(args.transactions) - len(args.pdf)
+    if missing_p > 0:
+        pdf += [(1.0-sum(pdf))/missing_p,]*missing_p
+
+    for txn, p in zip(args.transactions, pdf):
+        print "P=%s: %s" % (str(p), txn)
+
     clients = []
     for n in xrange(args.num_clients):
-        cl = RandomClient(args.count, logger, store_addr, args.think, args.think_var, args.transactions, args.pdf)
+        cl = RandomClient(args.count, logger, store_addr, args.think, args.think_var, args.transactions, pdf)
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 

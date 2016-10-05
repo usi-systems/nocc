@@ -258,7 +258,7 @@ class GotthardClient:
     def close(self):
         if self.closed: return
         self.sock.close()
-        if self.log: self.log.close()
+        if self.log_dir or self.log_filename: self.log.close()
         self.closed = True
 
     def _log(self, *args, **kwargs):
