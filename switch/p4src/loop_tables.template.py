@@ -54,8 +54,9 @@ table t_store_update {
 
 
 tmpl_do_check_op = lambda idx: """
-action do_check_op%i() {
+action do_check_op%i(in bit<1> read_cache_enabled) {
     %prev
+    req_meta.read_cache_enabled = read_cache_enabled;
     req_meta.w_cnt = req_meta.w_cnt + (gotthard_op[%i].op_type == GOTTHARD_OP_WRITE ? (bit<8>) 1:0);
     req_meta.rb_cnt = req_meta.rb_cnt + (gotthard_op[%i].op_type == GOTTHARD_OP_VALUE ? (bit<8>) 1:0);
     req_meta.r_cnt = req_meta.r_cnt + (gotthard_op[%i].op_type == GOTTHARD_OP_READ ? (bit<8>) 1:0);
@@ -75,7 +76,7 @@ action do_check_op%i() {
         is_cached_register[gotthard_op[%i].key] == 1 and
             value_register[gotthard_op[%i].key] != gotthard_op[%i].value ? (bit<1>) 1 : 0);
 }
-""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_check_op%d();'%(idx-1))
+""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_check_op%d(read_cache_enabled);'%(idx-1))
 
 tmpl_do_req_fix = lambda idx: """
 action do_req_fix%i() {

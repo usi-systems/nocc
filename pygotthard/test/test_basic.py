@@ -187,6 +187,10 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert res.op(k=1).type == TXN_VALUE
     assert res.op(k=2).type == TXN_UPDATED
 
+    # Assert a null value
+    res = cl.req([RB(12345, '')])
+    assert res.status == STATUS_OK, "Empty object should be null"
+
 
     # Cleanup: send reset flag to store
     res = cl.reset()
