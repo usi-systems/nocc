@@ -26,7 +26,8 @@ TXN_UPDATED = 4 # response: the object was just updated to this value
 
 txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
-INTER_MSG_SEND_WAIT = 0.00015
+MIN_INTER_MSG_SEND_WAIT = 0.000050
+MAX_INTER_MSG_SEND_WAIT = 0.002000
 
 VALUE_SIZE = 128
 
@@ -305,7 +306,9 @@ class GotthardClient:
             req_data = req.pack()
             self.sock.sendto(req_data, self.store_addr)
             self._log("sent", req=req)
-            if len(reqs) > 2 and INTER_MSG_SEND_WAIT: time.sleep(INTER_MSG_SEND_WAIT)
+            wait = max(MIN_INTER_MSG_SEND_WAIT * req.frag_seq, MAX_INTER_MSG_SEND_WAIT)
+            if wait:
+                time.sleep(wait)
 
     def _reassemble(self, resps):
         assert len(resps)
