@@ -170,6 +170,7 @@ def getExperimentStats(experiment_dir):
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
                 mode=conf['switch']['mode'])
+    if 'parameters' in conf: experiment_params.update(conf['parameters'])
     if 'req_count' in conf: experiment_params['req_count'] = conf['req_count']
 
 

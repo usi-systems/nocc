@@ -258,6 +258,11 @@ def main():
     net.stop()
 
     bad_codes = [rc for rc in return_codes if rc != 0]
+    with os.fdopen(os.open(os.path.join(conf['log_dir'], 'done.txt'), os.O_CREAT | os.O_WRONLY, 0666), 'w') as f:
+        cmd_line = ' '.join(['"%s"'%a if ' ' in a else a for a in sys.argv])
+        f.write("time: %s\n\n"%time.strftime("%a, %d %b %Y %H:%M:%S %z"))
+        f.write("Error: %s\n"% ('true' if len(bad_codes) else 'false'))
+        f.close()
     if len(bad_codes) > 0: sys.exit(1)
 
 if __name__ == '__main__':
