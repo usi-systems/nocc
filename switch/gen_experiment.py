@@ -24,7 +24,7 @@ parser.add_argument('--server-delta', help='Delay (ms) between switch and server
                     type=int, required=False, default=0)
 parser.add_argument('--client-delta', help='Delay (ms) between switch and client',
                     type=int, required=False, default=0)
-parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
+parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
 args = parser.parse_args()
 
 conf = dict(clients=[])

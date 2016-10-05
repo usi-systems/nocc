@@ -171,6 +171,11 @@ control ingress {
                 and
                     (req_meta.has_invalid_read == 1
                     or
+                    (req_meta.read_cache_enabled == 1 and
+                    req_meta.r_cnt > 0 and
+                    req_meta.w_cnt == 0 and
+                    req_meta.rb_cnt ==0)
+                    or
                     (req_meta.rb_cnt > 0 and
                     req_meta.r_cnt == 0 and
                     req_meta.w_cnt == 0))
