@@ -77,7 +77,8 @@ if __name__ == '__main__':
     parser.add_argument("--think-var", "-v", type=float, help="variance used for generating random think time", default=None)
     parser.add_argument("--pdf", "-p", type=lambda s: map(float, s.split(',')), help="Probability of each transaction. Each within [0.0, 1.0]",
             default=[0.85, 0.15])
-    parser.add_argument("--transactions", "-T", type=lambda s: s.split('|'), help="Transactions to execute", required=False,
+    parser.add_argument("--transactions", "-T", help="Transactions to execute", required=False,
+            type=lambda s: map(lambda t: t.strip(), s.split('|')),
             default=['R(1)', 'A(1, RND) W(1, RND)'])
     args = parser.parse_args()
 

@@ -114,7 +114,7 @@ def main():
     hosts = []
     srv = conf['server']
 
-    params = dict(conf['parameters'].items())
+    params = dict(conf['parameters'].items() if 'parameters' in conf else [])
 
     server_addr = srv['addr'] if 'addr' in srv else "10.0.0.10"
     server_port = srv['port'] if 'port' in srv else "9999"
@@ -218,11 +218,13 @@ def main():
     sleep(0.5)
 
 
+    return_codes = []
     def _wait_for_client(p, host):
         print p.communicate()
         if p.returncode is None:
             p.wait()
             print p.communicate()
+        return_codes.append(p.returncode)
         if 'stdoutfile' in host:
             host['stdoutfile'].flush()
             host['stdoutfile'].close()
@@ -251,9 +253,12 @@ def main():
         if server_proc.returncode is None:
             server_proc.kill()
         print server_proc.communicate()
+        return_codes.append(server_proc.returncode)
 
     net.stop()
 
+    bad_codes = [rc for rc in return_codes if rc != 0]
+    if len(bad_codes) > 0: sys.exit(1)
 
 if __name__ == '__main__':
     setLogLevel( 'info' )

@@ -29,5 +29,6 @@ fi
 sudo python experiment.py \
     --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
     --config $CONF_FILE \
-    --pcap-dump \
     --json $PROG.json $@
+
+#--pcap-dump \

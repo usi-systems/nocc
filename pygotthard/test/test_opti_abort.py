@@ -94,3 +94,5 @@ with GotthardClient(store_addr=(args.host, args.port), logger=logger, cl_id=1) a
     # cleanup
     res = cl1.req(W(1, ''))
     assert(res.status == STATUS_OK)
+
+if logger: logger.close()

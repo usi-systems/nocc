@@ -81,7 +81,9 @@ action do_check_op%i(in bit<1> read_cache_enabled) {
 tmpl_do_req_fix = lambda idx: """
 action do_req_fix%i() {
     %prev
-    gotthard_op[%i].op_type = gotthard_op[%i].op_type == GOTTHARD_OP_READ or gotthard_op[%i].op_type == GOTTHARD_OP_VALUE ?
+    gotthard_op[%i].op_type =
+        (gotthard_op[%i].op_type == GOTTHARD_OP_READ and req_meta.read_cache_enabled == 1)
+        or gotthard_op[%i].op_type == GOTTHARD_OP_VALUE ?
         (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
     gotthard_op[%i].key = gotthard_op[%i].key;
     gotthard_op[%i].value = is_opti_cached_register[gotthard_op[%i].key] == 1 ?
