@@ -146,6 +146,15 @@ class SoftwareSwitch:
         r_ops = [o for o in req.ops if o.type == TXN_READ]
         w_ops = [o for o in req.ops if o.type == TXN_WRITE]
 
+        if self.mode == 'read_cache':
+            cache_hits = [self._op(o=o) for o in r_ops if o.key in self.cache.values]
+            # All the ops are reads satisfied by the cache:
+            if len(req.ops) and len(cache_hits) == len(req.ops):
+                return self._sendToClient(TxnMsg(replyto=req, from_switch=1,
+                                                ops=cache_hits, status=STATUS_OK))
+            else:
+                return self._sendToStore(req)
+
         if len(r_ops) > 0: # Switch cannot satisfy R operations
             return self._sendToStore(req)
 
@@ -203,7 +212,7 @@ if __name__ == '__main__':
                         type=float, required=False, default=None)
     parser.add_argument("--client-delta", "-d", help="delay (s)  sending/receiving with client",
                         type=float, required=False, default=None)
-    parser.add_argument("--mode", "-m", choices=['forward', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
+    parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
     parser.add_argument("--verbosity", "-v", type=int, help="set verbosity level", default=0, required=False)
     parser.add_argument("store_host", type=str, help="store hostname")
     parser.add_argument("store_port", type=int, help="store port")
