@@ -69,6 +69,23 @@ with GotthardClient(store_addr=(args.host, args.port), log_filename=args.log) as
     assert res.flags.from_switch == 1, "key 2 should be cached"
     assert res.op(k=2).value.rstrip('\0') == 'newer', "should be latest value"
 
+    # Swich should not early abort/OK
+    assert cl.req(W(1, 'a')).status == STATUS_OK, "set a key that we will try to RB"
+    res = cl.req(RB(1, 'a'))
+    assert res.status == STATUS_OK
+    assert res.flags.from_switch == 0, "switch should not respond early"
+    res = cl.req(RB(1, 'wrong'))
+    assert res.status == STATUS_ABORT
+    assert res.flags.from_switch == 0, "switch should not respond early"
+
+    # Swich should not opti abort
+    t1_id, t2_id = cl.reqAsync(W(1, 'newer')), cl.reqAsync(RB(1, 'a'))
+    res1, res2 = cl.recvres(t1_id), cl.recvres(t2_id)
+    assert res1.status == STATUS_OK
+    assert res1.flags.from_switch == 0, "store should handle write"
+    assert res2.status == STATUS_ABORT
+    assert res2.flags.from_switch == 0, "store should abort"
+
 
     # Cleanup: send reset flag to store
     res = cl.reset()

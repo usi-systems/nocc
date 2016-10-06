@@ -72,7 +72,7 @@ header_type req_meta_t {
         bit<1> has_invalid_read;
         bit<1> has_opti_invalid_read;
 
-        bit<1> read_cache_enabled;
+        bit<1> read_cache_mode;
 
         // tmp variables for doing swaps:
         bit<32> tmp_ipv4_dstAddr;
