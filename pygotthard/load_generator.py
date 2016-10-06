@@ -2,7 +2,7 @@
 import argparse
 from threading import Thread
 from gotthard import *
-from random import gauss
+from random import gauss, randint
 from time import sleep
 from numpy.random import choice
 import re
@@ -11,57 +11,112 @@ R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 
 op_name_to_type = {'R': TXN_READ, 'W': TXN_WRITE, 'A': TXN_VALUE}
 
-def makeRTxn(txnstr):
-    txnsr
-
-class TxnFactory:
+class TxnEngine:
     re_tmpl = re.compile('([A-Z]+)\(([^,]+),?\s*([^)]+)?\)')
+    re_value = re.compile('^([0-9]+|[a-z])\s*(([+-])\s*([0-9]+|[a-z]))?$')
 
-    def __init__(self, templates, p):
-        self.templates = templates
+    def __init__(self, templates, p, count=10):
+        assert len(templates) == len(p)
         self.p = p
+        self.key_symbols = [] # all the symbols. e.g. [x, y, z]
+        self.symbol_to_key = {} # maps a symbol to a concrete key. e.g. x:1, y:2
+        self.key_to_symbol = {} # maps a concrete key to a symbol. e.g. 1:x, 2:y
+        self.symbol_state = {} # the current value for each symbol. e.g. x=23, y=14
+        self.max_count = count
+        self.count = 0      # number of successfully executed TXNs
+        self.current_txn = None # currently executing TXN
 
-    def _makeOp(self, op_tuple):
-        op_name, key = op_tuple[:2]
-        value = op_tuple[2] if len(op_tuple) > 2 else ''
-        if value.upper() == 'RND': value = str(choice([chr(c) for c in xrange(97, 123)]))
-        return TxnOp(key=int(key), value=value, t=op_name_to_type[op_name])
+        self.transactions = []
+        for tmpl in templates: # for each TXN
+            op_tuples = self.re_tmpl.findall(tmpl)
+            txn = map(self._parseOp, op_tuples)
+            self.transactions.append(txn)
 
-    def _makeTxn(self, tmpl):
-        op_tuples = self.re_tmpl.findall(tmpl)
-        assert op_tuples
-        return map(self._makeOp, op_tuples)
+        for n, symbol in enumerate(sorted(self.key_symbols)):
+            self.key_to_symbol[n+1] = symbol
+            self.symbol_to_key[symbol] = n+1
+            self.symbol_state[symbol] = 0
 
-    def generate(self):
-        tmpl = choice(self.templates, p=self.p)
-        return self._makeTxn(tmpl)
+        self._chooseTxn()
+
+    def _parseOp(self, op_tuple):
+        op_name, key_symbol = op_tuple[:2]
+        op_type = op_name_to_type[op_name]
+        if key_symbol not in self.key_symbols: self.key_symbols.append(key_symbol)
+
+        def makeExprLambda(e):
+            if len(e) == 0: return (lambda: 0)
+            if e.isdigit(): return (lambda: int(e))
+            else: return (lambda: self.symbol_state[e])
+
+        if len(op_tuple[2]) > 0:
+            val_def = op_tuple[2].strip()
+            if val_def.upper() == 'RND':
+                value_gen = lambda: str(randint(1, 100))
+            elif self.re_value.findall(val_def):
+                e = self.re_value.findall(val_def)[0]
+                a = makeExprLambda(e[0])
+                b = makeExprLambda(e[3])
+                value_gen = (lambda: str(a() + b())) if e[2] == '+' else (lambda: str(a() - b()))
+            else:
+                assert False, "Could not parse value definition: %s" % val_def
+        else:
+            value_gen = lambda: ''
+
+        return (lambda: TxnOp(key=self.symbol_to_key[key_symbol], t=op_type,
+                          value=value_gen()))
+
+    def uponResponse(self, res):
+        for op in res.ops:
+            if op.type not in [TXN_VALUE, TXN_UPDATED]: continue
+            if op.key not in self.key_to_symbol: continue
+            symbol = self.key_to_symbol[op.key]
+            val_str = op.value.rstrip('\0')
+            self.symbol_state[symbol] = int(val_str) if len(val_str) else ''
+
+        successful = False
+        if res.status == STATUS_OK:
+            successful = True
+            self.count += 1
+            self._chooseTxn()
+
+        return successful
 
 
-class RandomClient(Thread, GotthardClient):
+    def getTxn(self):
+        return [opgen() for opgen in self.current_txn]
+
+    def _chooseTxn(self):
+        self.current_txn = choice(self.transactions, p=self.p)
+
+    def getInitTxn(self):
+        return [W(key, str(0)) for symbol,key in self.symbol_to_key.items()]
+
+    def done(self):
+        return self.count == self.max_count
+
+
+class EngineClient(Thread, GotthardClient):
     def __init__(self, count, log, store_addr, think, think_var, txn_templates, pdf):
         GotthardClient.__init__(self, store_addr=store_addr, logger=log)
         Thread.__init__(self)
         self.think = think
         self.think_var = think_var
 
-        tf = TxnFactory(txn_templates, pdf)
-        self.transactions = [tf.generate() for _ in xrange(count)]
+        self.engine = TxnEngine(txn_templates, pdf, count=count)
 
     def run(self):
         if self.think and self.think_var: think_sigma = self.think * self.think_var
         with self:
-            for txn in self.transactions:
-                while True:
-                    res = self.req(txn)
-                    if res.status == STATUS_OK: break
-                    # otherwise, fix the assertion operations
-                    assertion_ops = [o for o in txn if o.type == TXN_VALUE]
-                    for op in assertion_ops:
-                        correction = res.op(k=op.key, t=TXN_VALUE)
-                        if not correction: continue
-                        op.value = correction.value
-
-                if self.think:
+            init_txn = self.engine.getInitTxn()
+            res = self.req(init_txn)
+            assert res.status == STATUS_OK
+            self.engine.uponResponse(res)
+            while not self.engine.done():
+                txn = self.engine.getTxn()
+                res = self.req(txn)
+                successful = self.engine.uponResponse(res)
+                if successful and self.think:
                     sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
 
 
@@ -96,7 +151,7 @@ if __name__ == '__main__':
 
     clients = []
     for n in xrange(args.num_clients):
-        cl = RandomClient(args.count, logger, store_addr, args.think, args.think_var, args.transactions, pdf)
+        cl = EngineClient(args.count, logger, store_addr, args.think, args.think_var, args.transactions, pdf)
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 
