@@ -18,7 +18,7 @@ def parseLog(func, filename):
             event = json.loads(line)
             func(event)
 
-default_st = dict(abort_count=0, optimistic_abort_count=0,
+default_st = dict(store_abort_cnt=0, switch_abort_cnt=0, opti_abort_cnt=0,
                     sent_count=0, recv_count=0,
                     start=None, end=None)
 
@@ -40,10 +40,17 @@ def getClientStats(filename):
             if e['req']['req_id'] not in outstanding_req_time:
                 outstanding_req_time[e['req']['req_id']] = e['time']
         elif e['event'] == 'received':
+            if 'from_switch' not in e['res']: e['res']['from_switch'] = False
             st['end'] = e['time']
             st['recv_count'] += 1
-            if e['res']['status'] == 'OPTIMISTIC_ABORT': st['optimistic_abort_count'] += 1
-            if e['res']['status'] == 'ABORT': st['abort_count'] += 1
+
+            if e['res']['status'] == 'ABORT' and e['res']['from_switch']:
+                st['switch_abort_cnt'] += 1
+            elif e['res']['status'] == 'ABORT':
+                st['store_abort_cnt'] += 1
+            elif e['res']['status'] == 'OPTIMISTIC_ABORT':
+                st['opti_abort_cnt'] += 1
+
             if e['res']['status'] == 'OK' and cur_txn['start_time']:
                 txn_times.append(e['time'] - cur_txn['start_time'])
                 cur_txn['start_time'] = None
@@ -62,7 +69,7 @@ def getServerStats(filename):
         if e['event'] == 'sent':
             st['sent_count'] += 1
             st['end'] = e['time']
-            if e['res']['status'] == 'ABORT': st['abort_count'] += 1
+            if e['res']['status'] == 'ABORT': st['store_abort_cnt'] += 1
         elif e['event'] == 'received':
             if st['start'] is None: st['start'] = e['time']
             st['recv_count'] += 1
@@ -136,16 +143,20 @@ def getExperimentStats(experiment_dir):
             in zip(client_names, client_log_filenames)]
 
     summary = dict()
-    summary['total_aborts'] = sum([st['abort_count'] for st in cl_stats]) + sum([st['optimistic_abort_count'] for st in cl_stats])
+    summary['store_abort_cnt'] = sum([st['store_abort_cnt'] for st in cl_stats]) # aborted by store
+    summary['switch_abort_cnt'] = sum([st['switch_abort_cnt'] for st in cl_stats])  # normally aborted by switch
+    summary['opti_abort_cnt'] = sum([st['opti_abort_cnt'] for st in cl_stats]) # optimistically aborted by switch
+    summary['total_abort_cnt'] = summary['store_abort_cnt'] + summary['switch_abort_cnt'] + summary['opti_abort_cnt']
     summary['total_sent'] = sum([st['sent_count'] for st in cl_stats])
     summary['total_recv'] = sum([st['recv_count'] for st in cl_stats])
     summary['avg_txn_time'] = np.mean([st['avg_txn_time'] for st in cl_stats])
     summary['avg_req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
-    summary['srv_sent'] = srv_stats['sent_count']
-    summary['srv_recv'] = srv_stats['recv_count']
-    summary['srv_abort'] = srv_stats['abort_count']
+    #summary['srv_sent'] = srv_stats['sent_count']
+    #summary['srv_recv'] = srv_stats['recv_count']
+    #summary['srv_abort'] = srv_stats['store_abort_cnt']
 
-    summary['switch_abort_ratio'] = 0 if summary['total_aborts'] == 0 else float(summary['total_aborts'] - summary['srv_abort']) / summary['total_aborts']
+    summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt'] + summary['opti_abort_cnt']) / summary['total_abort_cnt']
+    summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
 
     summary['first_start_time'] = min([st['start'] for st in cl_stats])
     summary['last_start_time'] = max([st['start'] for st in cl_stats])
