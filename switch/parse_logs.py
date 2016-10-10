@@ -57,9 +57,10 @@ def getClientStats(filename):
 
             if e['res']['req_id'] in outstanding_req_time:
                 req_rtts.append(e['time'] - outstanding_req_time[e['res']['req_id']])
+                del outstanding_req_time[e['res']['req_id']]
 
     parseLog(clientHook, filename)
-    st['avg_txn_time'] = np.mean(txn_times)
+    st['txn_times'] = txn_times
     st['avg_req_rtt'] = np.mean(req_rtts)
     return st
 
@@ -138,22 +139,28 @@ def getExperimentStats(experiment_dir):
     if len(client_log_filenames) < 1: raise Exception("No client logs found in: %s"%log_dir)
     client_names = [path.basename(f).split('.log')[0] for f in client_log_filenames]
 
-    srv_stats = getServerStats(server_log_filenames[0])
     cl_stats = [dict(getClientStats(f), **dict(name=name)) for name, f
             in zip(client_names, client_log_filenames)]
 
     summary = dict()
+
+    #srv_stats = getServerStats(server_log_filenames[0])
+    #summary['srv_sent'] = srv_stats['sent_count']
+    #summary['srv_recv'] = srv_stats['recv_count']
+    #summary['srv_abort'] = srv_stats['store_abort_cnt']
+
     summary['store_abort_cnt'] = sum([st['store_abort_cnt'] for st in cl_stats]) # aborted by store
     summary['switch_abort_cnt'] = sum([st['switch_abort_cnt'] for st in cl_stats])  # normally aborted by switch
     summary['opti_abort_cnt'] = sum([st['opti_abort_cnt'] for st in cl_stats]) # optimistically aborted by switch
     summary['total_abort_cnt'] = summary['store_abort_cnt'] + summary['switch_abort_cnt'] + summary['opti_abort_cnt']
     summary['total_sent'] = sum([st['sent_count'] for st in cl_stats])
     summary['total_recv'] = sum([st['recv_count'] for st in cl_stats])
-    summary['avg_txn_time'] = np.mean([st['avg_txn_time'] for st in cl_stats])
     summary['avg_req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
-    #summary['srv_sent'] = srv_stats['sent_count']
-    #summary['srv_recv'] = srv_stats['recv_count']
-    #summary['srv_abort'] = srv_stats['store_abort_cnt']
+
+
+    all_txn_times = sum([st['txn_times'] for st in cl_stats], [])
+    summary['avg_txn_time'] = np.mean(all_txn_times)
+    summary['avg_txn_time_err'] = np.std(all_txn_times)
 
     summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt'] + summary['opti_abort_cnt']) / summary['total_abort_cnt']
     summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
@@ -164,6 +171,8 @@ def getExperimentStats(experiment_dir):
     summary['last_end_time'] = max([st['end'] for st in cl_stats])
     summary['elapsed_time'] = summary['last_end_time'] - summary['first_start_time']
     summary['concurrent_time'] = summary['first_end_time'] - summary['last_start_time']
+
+    summary['txn_rate'] = len(all_txn_times) / summary['elapsed_time']
 
     if args.tpcc:
         assert len(stdout_log_filenames) == 1
