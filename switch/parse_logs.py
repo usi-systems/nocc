@@ -25,22 +25,24 @@ default_st = dict(store_abort_cnt=0, switch_abort_cnt=0, opti_abort_cnt=0,
 
 def getClientStats(filename):
     st = default_st.copy()
+    req_rtts = [] # list of the RTT for all requests
+    txns = []    # stats per TXN (includes TXNs from all clients)
+    clients = {} # per-client request and TXN state
 
-    outstanding_req_time = {} # the time of req_ids awaiting a response
-    req_rtts = [] # the RTT for each txn msg
-
-    cur_txn = dict(start_time=None, has_assert=None, abrt_cnt=None) # the last req time before a successful response
-    txns = [] # successfully completed TXNs
     def clientHook(e):
         if e['event'] == 'sent':
+            if e['req']['cl_id'] not in clients:
+                clients[e['req']['cl_id']] = dict(reqs={}, txn=dict(start=None, abrt_cnt=0, has_assert=None))
+            reqs, txn = clients[e['req']['cl_id']]['reqs'], clients[e['req']['cl_id']]['txn']
             if st['start'] is None: st['start'] = e['time']
             st['sent_count'] += 1
-            if cur_txn['start_time'] is None:
-                cur_txn.update(dict(start_time=e['time'], abrt_cnt=0,
+            if txn['start'] is None:
+                txn.update(dict(start=e['time'], abrt_cnt=0,
                     has_assert=len(filter(lambda o: o['t'] == 'V', e['req']['ops'])) > 0))
-            if e['req']['req_id'] not in outstanding_req_time:
-                outstanding_req_time[e['req']['req_id']] = e['time']
+            if e['req']['req_id'] not in reqs:
+                reqs[e['req']['req_id']] = e['time']
         elif e['event'] == 'received':
+            reqs, txn = clients[e['res']['cl_id']]['reqs'], clients[e['res']['cl_id']]['txn']
             if 'from_switch' not in e['res']: e['res']['from_switch'] = False
             st['end'] = e['time']
             st['recv_count'] += 1
@@ -52,17 +54,17 @@ def getClientStats(filename):
             elif e['res']['status'] == 'OPTIMISTIC_ABORT':
                 st['opti_abort_cnt'] += 1
 
-            if e['res']['status'] in ['ABORT', 'OPTIMISTIC_ABORT']: cur_txn['abrt_cnt'] += 1
+            if e['res']['status'] in ['ABORT', 'OPTIMISTIC_ABORT']: txn['abrt_cnt'] += 1
 
-            if e['res']['status'] == 'OK' and cur_txn['start_time']:
-                txns.append(dict(latency=e['time'] - cur_txn['start_time'],
-                                    abrt_cnt=cur_txn['abrt_cnt'],
-                                    has_assert=cur_txn['has_assert']))
-                cur_txn['start_time'] = None
+            if e['res']['status'] == 'OK' and txn['start']:
+                txns.append(dict(latency=e['time'] - txn['start'],
+                                    abrt_cnt=txn['abrt_cnt'],
+                                    has_assert=txn['has_assert']))
+                txn['start'] = None
 
-            if e['res']['req_id'] in outstanding_req_time:
-                req_rtts.append(e['time'] - outstanding_req_time[e['res']['req_id']])
-                del outstanding_req_time[e['res']['req_id']]
+            if e['res']['req_id'] in reqs:
+                req_rtts.append(e['time'] - reqs[e['res']['req_id']])
+                del reqs[e['res']['req_id']]
 
     parseLog(clientHook, filename)
     st['txns'] = txns
@@ -196,6 +198,10 @@ def getExperimentStats(experiment_dir):
     summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt'] + summary['opti_abort_cnt']) / summary['total_abort_cnt']
     summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
 
+    if args.latencies:
+        summary['all_txn_latencies'] = ','.join(map(str, all_txn_latencies))
+        summary['asrt_txn_latencies'] = ','.join(map(str, asrt_txn_latencies))
+
     if args.tpcc:
         assert len(stdout_log_filenames) == 1
         tpcc_stats = getTpccStats(stdout_log_filenames[0])
@@ -223,6 +229,7 @@ if __name__ == '__main__':
     parser.add_argument("--jobs", "-j", type=int, action="store", default=None, help="number of parallel jobs")
     parser.add_argument("--json", "-J", action="store_true", help="output as JSON")
     parser.add_argument("--tpcc", "-t", action="store_true", help="parse TPCC data from client STDOUT log file")
+    parser.add_argument("--latencies", "-l", action="store_true", help="output lists of latencies for using in a CDF")
     parser.add_argument("--header", "-H", action="store_true", help="print header")
     args = parser.parse_args()
 
