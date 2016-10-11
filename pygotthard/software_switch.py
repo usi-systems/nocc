@@ -71,7 +71,7 @@ class StorePort(asyncore.dispatcher):
 
     def handle_read(self):
         data, fromaddr = self.recvfrom(MAX_TXNMSG_SIZE)
-        assert(fromaddr == self.store_addr)
+        # assert(fromaddr == self.store_addr)
         res = TxnMsg(binstr=data)
         self.res_queue.put(res)
 
