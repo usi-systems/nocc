@@ -85,21 +85,25 @@ def getServerStats(filename):
     return st
 
 re_abort = re.compile('DEBUG: cl_id (\d+): (.*) \(TXN (\d+)\.(\d+)\): Gotthard(Optimistic)?AbortFrom(Store|Switch)')
+re_txntime = re.compile("Executed '([^']+)' transaction in ([^s]+)s")
 
 def getTpccStats(filename):
     st = dict(tpcc_aborts=0,tpcc_opti_aborts=0,tpcc_switch_aborts=0,tpcc_num_clients=0)
     cl_aborts = {}
     txn_aborts = {}
+    txn_latencies = {}
     results = []
     with open(filename, 'r') as f:
         for line in f.readlines():
             if len(results) or line.strip().startswith('Execution Results after '):
                 results.append(line)
+                continue
             elif 'DEBUG: Creating client pool with ' in line:
                 st['tpcc_num_clients'] = int(line.strip().split()[-2])
-            else:
-                m = re_abort.findall(line)
-                if not m: continue
+                continue
+
+            m = re_abort.findall(line)
+            if m:
                 assert len(m) == 1
                 cl_id, txn_name, txn_num, abort_cnt, optimistic, abort_from = m[0]
                 st['tpcc_aborts'] += 1
@@ -109,13 +113,25 @@ def getTpccStats(filename):
                 cl_aborts[cl_id][txn_num] = int(abort_cnt)
                 if txn_name not in txn_aborts: txn_aborts[txn_name] = {}
                 txn_aborts[txn_name][txn_num] = int(abort_cnt)
+                continue
+
+            m = re_txntime.findall(line)
+            if m:
+                assert len(m) == 1
+                txn_name, latency = m[0]
+                txn_name = txn_name.lower()
+                if txn_name not in txn_latencies: txn_latencies[txn_name] = []
+                txn_latencies[txn_name].append(float(latency))
 
     for line in map(lambda l: l.strip(), results[3:]):
         if line.startswith('----'): continue
         r = line.split()
-        st_name = r[0].lower()
-        st['tpcc_' + st_name + '_cnt'] = int(r[1].strip())
-        st['tpcc_' + st_name + '_rate'] = float(r[3].strip())
+        txn_name = r[0].lower()
+        st['tpcc_' + txn_name + '_cnt'] = int(r[1].strip())
+        st['tpcc_' + txn_name + '_rate'] = float(r[3].strip())
+
+    for txn_name, latencies in txn_latencies.items():
+        st['tpcc_' + txn_name + '_lat'] = np.mean(latencies)
 
     # How many times is a TXN retried until commit (i.e. abort cnt)?
     retry_cnts = sum([cl_aborts[cl_id].values() for cl_id in cl_aborts], [])
