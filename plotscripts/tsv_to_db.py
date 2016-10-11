@@ -6,6 +6,13 @@ import io
 import logging
 import sys
 
+def _is_float(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
 def _get_col_datatypes(fin):
     dr = csv.DictReader(fin, delimiter='\t') # comma is default delimiter
     fieldTypes = {}
@@ -21,6 +28,8 @@ def _get_col_datatypes(fin):
 
             if data.isdigit():
                 fieldTypes[field] = "INTEGER"
+            elif _is_float(data):
+                fieldTypes[field] = "FLOAT"
             else:
                 fieldTypes[field] = "TEXT"
         # TODO: Currently there's no support for DATE in sqllite

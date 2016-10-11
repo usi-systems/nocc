@@ -32,11 +32,13 @@ def _get_labels(cur, field):
     return labels
 
 
-def _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars):
-    sql ="SELECT %s,%s,%s FROM t WHERE %s" % (label_field, ind_var, dep_var,
+def _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars, err_field=None):
+    sql ="SELECT %s,%s,%s%s FROM t WHERE %s" % (label_field, ind_var, dep_var,
+            ',' + err_field if err_field else '',
         ' AND '.join(["%s=%s"%(k,v) for k,v in fixed_ind_vars.iteritems()]))
     cur.execute(sql)
     points_for_label = {}
+    err_for_label = {}
     data = []
     while True:
         rows = cur.fetchall()
@@ -47,21 +49,33 @@ def _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars):
             if lbl not in points_for_label: points_for_label[lbl] = {}
             if x not in points_for_label[lbl]: points_for_label[lbl][x] = []
             points_for_label[lbl][x].append(float(y))
+            if err_field:
+                if lbl not in err_for_label: err_for_label[lbl] = {}
+                err_for_label[lbl][x] = float(r[3])
 
     for lbl, points in points_for_label.iteritems():
         for x, ys in points.iteritems():
-            data.append((lbl, float(x), np.average(ys), np.std(ys)))
+            err = err_for_label[lbl][x] if err_field else np.std(ys)
+            data.append((lbl, float(x), np.average(ys), err))
     return data
+
+def _get_fields(cur):
+    cur.execute('SELECT * FROM t')
+    return [desc[0] for desc in cur.description]
 
 
 def plot_variables(fh=None, filename=None, out_dir="./",
         label_field='mode', label_order=None,
+        err_field_suffix=None,
         independent_vars=None, plot_independent_vars=None, dependent_vars=None):
     assert(fh or filename)
     assert(independent_vars)
     assert(dependent_vars)
     con = tsvToDb(file=fh, filename=filename, table_name='t')
     cur = con.cursor()
+
+    if err_field_suffix is not None:
+        fields = _get_fields(cur)
 
     labels = _get_labels(cur, label_field)
 
@@ -73,7 +87,13 @@ def plot_variables(fh=None, filename=None, out_dir="./",
         for dep_var in dependent_vars:
             for fixed_ind_vars in combinations:                         # Fix the other ind. vars. and get the values
                 assert(len(fixed_ind_vars.keys()) == len(other_ind_vars))
-                data = _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars)
+
+                err_field = None
+                if err_field_suffix:
+                    err_field = dep_var + err_field_suffix
+                    assert err_field in fields, "%s not is %s" % (err_field, str(fields))
+
+                data = _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars, err_field=err_field)
                 title = "%s vs. %s" % (ind_var, dep_var)
                 name = "%s_vs_%s_%s" % (ind_var, dep_var,
                         '_'.join(["%s%s"%(v,k) for k,v in fixed_ind_vars.iteritems()]))
@@ -105,6 +125,8 @@ if __name__ == '__main__':
             type=str, required=False)
     parser.add_argument('--dep-vars', '-d', help='Comma-separated list of dependent variable names',
             type=str, required=True)
+    parser.add_argument('--err-suffix', '-e', help='Append this string to column name to find its error (std dev)',
+            type=str, required=False, default=None)
     args = parser.parse_args()
 
     if not os.path.exists(args.out_dir):
@@ -115,6 +137,7 @@ if __name__ == '__main__':
             filename = args.filename if args.filename != '-' else None,
             out_dir = args.out_dir,
             label_field = args.label,
+            err_field_suffix=args.err_suffix,
             label_order = _tolist(args.label_order) if args.label_order else None,
             independent_vars = _tolist(args.ind_vars),
             plot_independent_vars=_tolist(args.plot_ind_vars) if args.plot_ind_vars else None,
