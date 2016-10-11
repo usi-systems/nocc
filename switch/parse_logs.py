@@ -29,15 +29,15 @@ def getClientStats(filename):
     outstanding_req_time = {} # the time of req_ids awaiting a response
     req_rtts = [] # the RTT for each txn msg
 
-    cur_txn = dict(start_time=None, has_assert=None) # the last req time before a successful response
+    cur_txn = dict(start_time=None, has_assert=None, abrt_cnt=None) # the last req time before a successful response
     txns = [] # successfully completed TXNs
     def clientHook(e):
         if e['event'] == 'sent':
             if st['start'] is None: st['start'] = e['time']
             st['sent_count'] += 1
             if cur_txn['start_time'] is None:
-                cur_txn['start_time'] = e['time']
-                cur_txn['has_assert'] = len(filter(lambda o: o['t'] == 'V', e['req']['ops'])) > 0
+                cur_txn.update(dict(start_time=e['time'], abrt_cnt=0,
+                    has_assert=len(filter(lambda o: o['t'] == 'V', e['req']['ops'])) > 0))
             if e['req']['req_id'] not in outstanding_req_time:
                 outstanding_req_time[e['req']['req_id']] = e['time']
         elif e['event'] == 'received':
@@ -52,8 +52,11 @@ def getClientStats(filename):
             elif e['res']['status'] == 'OPTIMISTIC_ABORT':
                 st['opti_abort_cnt'] += 1
 
+            if e['res']['status'] in ['ABORT', 'OPTIMISTIC_ABORT']: cur_txn['abrt_cnt'] += 1
+
             if e['res']['status'] == 'OK' and cur_txn['start_time']:
                 txns.append(dict(latency=e['time'] - cur_txn['start_time'],
+                                    abrt_cnt=cur_txn['abrt_cnt'],
                                     has_assert=cur_txn['has_assert']))
                 cur_txn['start_time'] = None
 
@@ -171,27 +174,32 @@ def getExperimentStats(experiment_dir):
     all_txn_latencies = [t['latency'] for t in all_txns]
     asrt_txn_latencies = [t['latency'] for t in all_txns if t['has_assert']]
     othr_txn_latencies = [t['latency'] for t in all_txns if not t['has_assert']]
-    summary['asrt_txn_ratio'] = len(asrt_txn_latencies) / float(len(all_txn_latencies))
-    summary['all_txn_latency'] = np.mean(all_txn_latencies)
-    summary['asrt_txn_latency'] = np.mean(asrt_txn_latencies)
+    all_txn_abrt_cnts = [t['abrt_cnt'] for t in all_txns]
+
+    summary['asrt_txn_latency'] = np.mean(asrt_txn_latencies) if asrt_txn_latencies else 0
+    summary['p99_asrt_txn_latency'] = np.percentile(asrt_txn_latencies, 99) if asrt_txn_latencies else 0
+    summary['p95_asrt_txn_latency'] = np.percentile(asrt_txn_latencies, 95) if asrt_txn_latencies else 0
     summary['othr_txn_latency'] = np.mean(othr_txn_latencies)
-    summary['avg_txn_latency_err'] = np.std(all_txn_latencies)
-    summary['p99_txn_latency'] = np.percentile(all_txn_latencies, 99)
-    summary['p95_txn_latency'] = np.percentile(all_txn_latencies, 95)
+
+    summary['all_txn_latency'] = np.mean(all_txn_latencies)
+    summary['p99_all_txn_latency'] = np.percentile(all_txn_latencies, 99)
+    summary['p95_all_txn_latency'] = np.percentile(all_txn_latencies, 95)
 
     summary['all_txn_rate'] = len(all_txn_latencies) / sum(all_txn_latencies)
-    summary['asrt_txn_rate'] = len(asrt_txn_latencies) / sum(asrt_txn_latencies)
+    summary['asrt_txn_rate'] = len(asrt_txn_latencies) / sum(asrt_txn_latencies) if asrt_txn_latencies else 0
     summary['othr_txn_rate'] = len(othr_txn_latencies) / sum(othr_txn_latencies)
+
+    summary['all_txn_abrt_cnt'] = np.mean(all_txn_abrt_cnts)
+
+    summary['asrt_txn_ratio'] = len(asrt_txn_latencies) / float(len(all_txn_latencies))
 
     summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt'] + summary['opti_abort_cnt']) / summary['total_abort_cnt']
     summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
-
 
     if args.tpcc:
         assert len(stdout_log_filenames) == 1
         tpcc_stats = getTpccStats(stdout_log_filenames[0])
         for k, v in tpcc_stats.items(): summary[k] = v
-
 
     total_delta = conf['total_delay'] if 'total_delay' in conf else conf['server']['delay'] + conf['clients'][0]['delay']
 
