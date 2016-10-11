@@ -29,14 +29,15 @@ def getClientStats(filename):
     outstanding_req_time = {} # the time of req_ids awaiting a response
     req_rtts = [] # the RTT for each txn msg
 
-    cur_txn = dict(start_time=None) # the last req time before a successful response
-    txn_times = [] # the times it takes to successfully complete a TXN
+    cur_txn = dict(start_time=None, has_assert=None) # the last req time before a successful response
+    txns = [] # successfully completed TXNs
     def clientHook(e):
         if e['event'] == 'sent':
             if st['start'] is None: st['start'] = e['time']
             st['sent_count'] += 1
             if cur_txn['start_time'] is None:
                 cur_txn['start_time'] = e['time']
+                cur_txn['has_assert'] = len(filter(lambda o: o['t'] == 'V', e['req']['ops'])) > 0
             if e['req']['req_id'] not in outstanding_req_time:
                 outstanding_req_time[e['req']['req_id']] = e['time']
         elif e['event'] == 'received':
@@ -52,7 +53,8 @@ def getClientStats(filename):
                 st['opti_abort_cnt'] += 1
 
             if e['res']['status'] == 'OK' and cur_txn['start_time']:
-                txn_times.append(e['time'] - cur_txn['start_time'])
+                txns.append(dict(latency=e['time'] - cur_txn['start_time'],
+                                    has_assert=cur_txn['has_assert']))
                 cur_txn['start_time'] = None
 
             if e['res']['req_id'] in outstanding_req_time:
@@ -60,7 +62,7 @@ def getClientStats(filename):
                 del outstanding_req_time[e['res']['req_id']]
 
     parseLog(clientHook, filename)
-    st['txn_times'] = txn_times
+    st['txns'] = txns
     st['avg_req_rtt'] = np.mean(req_rtts)
     return st
 
@@ -149,6 +151,13 @@ def getExperimentStats(experiment_dir):
     #summary['srv_recv'] = srv_stats['recv_count']
     #summary['srv_abort'] = srv_stats['store_abort_cnt']
 
+    summary['first_start_time'] = min([st['start'] for st in cl_stats])
+    summary['last_start_time'] = max([st['start'] for st in cl_stats])
+    summary['first_end_time'] = min([st['end'] for st in cl_stats])
+    summary['last_end_time'] = max([st['end'] for st in cl_stats])
+    summary['elapsed_time'] = summary['last_end_time'] - summary['first_start_time']
+    summary['concurrent_time'] = summary['first_end_time'] - summary['last_start_time']
+
     summary['store_abort_cnt'] = sum([st['store_abort_cnt'] for st in cl_stats]) # aborted by store
     summary['switch_abort_cnt'] = sum([st['switch_abort_cnt'] for st in cl_stats])  # normally aborted by switch
     summary['opti_abort_cnt'] = sum([st['opti_abort_cnt'] for st in cl_stats]) # optimistically aborted by switch
@@ -158,21 +167,25 @@ def getExperimentStats(experiment_dir):
     summary['avg_req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
 
 
-    all_txn_times = sum([st['txn_times'] for st in cl_stats], [])
-    summary['avg_txn_time'] = np.mean(all_txn_times)
-    summary['avg_txn_time_err'] = np.std(all_txn_times)
+    all_txns = sum([st['txns'] for st in cl_stats], [])
+    all_txn_latencies = [t['latency'] for t in all_txns]
+    asrt_txn_latencies = [t['latency'] for t in all_txns if t['has_assert']]
+    othr_txn_latencies = [t['latency'] for t in all_txns if not t['has_assert']]
+    summary['asrt_txn_ratio'] = len(asrt_txn_latencies) / float(len(all_txn_latencies))
+    summary['all_txn_latency'] = np.mean(all_txn_latencies)
+    summary['asrt_txn_latency'] = np.mean(asrt_txn_latencies)
+    summary['othr_txn_latency'] = np.mean(othr_txn_latencies)
+    summary['avg_txn_latency_err'] = np.std(all_txn_latencies)
+    summary['p99_txn_latency'] = np.percentile(all_txn_latencies, 99)
+    summary['p95_txn_latency'] = np.percentile(all_txn_latencies, 95)
+
+    summary['all_txn_rate'] = len(all_txn_latencies) / sum(all_txn_latencies)
+    summary['asrt_txn_rate'] = len(asrt_txn_latencies) / sum(asrt_txn_latencies)
+    summary['othr_txn_rate'] = len(othr_txn_latencies) / sum(othr_txn_latencies)
 
     summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt'] + summary['opti_abort_cnt']) / summary['total_abort_cnt']
     summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
 
-    summary['first_start_time'] = min([st['start'] for st in cl_stats])
-    summary['last_start_time'] = max([st['start'] for st in cl_stats])
-    summary['first_end_time'] = min([st['end'] for st in cl_stats])
-    summary['last_end_time'] = max([st['end'] for st in cl_stats])
-    summary['elapsed_time'] = summary['last_end_time'] - summary['first_start_time']
-    summary['concurrent_time'] = summary['first_end_time'] - summary['last_start_time']
-
-    summary['txn_rate'] = len(all_txn_times) / summary['elapsed_time']
 
     if args.tpcc:
         assert len(stdout_log_filenames) == 1
