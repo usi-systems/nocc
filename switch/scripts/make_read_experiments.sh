@@ -8,18 +8,19 @@ fi
 
 DONE_DIR="$EXPERIMENTS_DIR/done"
 TORUN_DIR="$EXPERIMENTS_DIR/torun"
-mkdir $DONE_DIR
-mkdir $TORUN_DIR
+mkdir -p $DONE_DIR
+mkdir -p $TORUN_DIR
 
-for DR in .01 .1 .2 .3 .4 .5 .9
+#for DR in 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9
+for DR in 0.2
 do
     for TD in 50
-    #for TD in 100
     do
-        #for N in 2 3 4
-        for N in 4 6 8
+        #for N in 8
+        for N in 2 3 4 5 6 7 8 9 10
         do
-            for write_p in 0 .1 .3 .5 .7 .9 1
+            for write_p in 0.5
+            #for write_p in 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 .9 1
             do
                 for switch_mode in 'read_cache' 'forward' 'early_abort' 'optimistic_abort'
                 do
