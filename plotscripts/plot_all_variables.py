@@ -63,10 +63,14 @@ def _get_fields(cur):
     cur.execute('SELECT * FROM t')
     return [desc[0] for desc in cur.description]
 
+def _save_tsv(data, filename):
+    with open(filename, 'w') as f:
+        f.write('\t'.join(['LABEL', 'X', 'Y', 'YERR']) + '\n')
+        f.write('\n'.join(map(lambda r: '\t'.join(map(str, r)), data)))
 
 def plot_variables(fh=None, filename=None, out_dir="./",
-        label_field='mode', label_order=None,
-        err_field_suffix=None,
+        label_field='mode', label_order=None, out_tsv=False,
+        err_field_suffix=None, skip_single=False,
         independent_vars=None, plot_independent_vars=None, dependent_vars=None):
     assert(fh or filename)
     assert(independent_vars)
@@ -94,11 +98,13 @@ def plot_variables(fh=None, filename=None, out_dir="./",
                     assert err_field in fields, "%s not is %s" % (err_field, str(fields))
 
                 data = _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars, err_field=err_field)
+                if skip_single and len(data) < len(labels)*2: continue
                 title = "%s vs. %s" % (ind_var, dep_var)
                 name = "%s_vs_%s_%s" % (ind_var, dep_var,
                         '_'.join(["%s%s"%(v,k) for k,v in fixed_ind_vars.iteritems()]))
                 fig = plot_lines(data, xlabel=ind_var, ylabel=dep_var,
                         title=title, label_order=label_order)
+                if out_tsv: _save_tsv(data, os.path.join(out_dir, name + '.tsv'))
                 fig.savefig(os.path.join(out_dir, name + '.png'))
                 plt.close(fig)
 
@@ -127,6 +133,10 @@ if __name__ == '__main__':
             type=str, required=True)
     parser.add_argument('--err-suffix', '-e', help='Append this string to column name to find its error (std dev)',
             type=str, required=False, default=None)
+    parser.add_argument('--skip-single', help='Don\'t plot graphs that have a single data point',
+            action='store_true', default=False)
+    parser.add_argument('--out-tsv', help='Output the TSV to generate each plot',
+            action='store_true', default=False)
     args = parser.parse_args()
 
     if not os.path.exists(args.out_dir):
@@ -136,6 +146,8 @@ if __name__ == '__main__':
             fh = sys.stdin if args.filename == '-' else None,
             filename = args.filename if args.filename != '-' else None,
             out_dir = args.out_dir,
+            skip_single = args.skip_single,
+            out_tsv = args.out_tsv,
             label_field = args.label,
             err_field_suffix=args.err_suffix,
             label_order = _tolist(args.label_order) if args.label_order else None,
