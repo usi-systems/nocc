@@ -11,6 +11,18 @@ from pygotthard import *
 
 args = None
 
+#import warnings
+#warnings.simplefilter("error")
+
+def getLogTimes(filename):
+    with open(filename, 'rb') as fh:
+        first_line = next(fh).decode(errors='replace')
+        fh.seek(-2048, 2)
+        last_line = fh.readlines()[-1].decode(errors='replace')
+    first = json.loads(first_line)
+    last = json.loads(last_line)
+    return (first['time'], last['time'])
+
 def parseLog(func, filename):
     with open(filename, 'r') as f:
         for line in f.readlines():
@@ -23,18 +35,19 @@ default_st = dict(store_abort_cnt=0, switch_abort_cnt=0, opti_abort_cnt=0,
                     start=None, end=None)
 
 
-def getClientStats(filename):
+def getClientStats(filename, start=None, end=None):
     st = default_st.copy()
     req_rtts = [] # list of the RTT for all requests
     txns = []    # stats per TXN (includes TXNs from all clients)
     clients = {} # per-client request and TXN state
 
     def clientHook(e):
+        if start is not None and e['time'] < start: return
+        if end is not None and e['time'] > end: return
         if e['event'] == 'sent':
             if e['req']['cl_id'] not in clients:
                 clients[e['req']['cl_id']] = dict(reqs={}, txn=dict(start=None, abrt_cnt=0, has_assert=None))
             reqs, txn = clients[e['req']['cl_id']]['reqs'], clients[e['req']['cl_id']]['txn']
-            if st['start'] is None: st['start'] = e['time']
             st['sent_count'] += 1
             if txn['start'] is None:
                 txn.update(dict(start=e['time'], abrt_cnt=0,
@@ -42,9 +55,9 @@ def getClientStats(filename):
             if e['req']['req_id'] not in reqs:
                 reqs[e['req']['req_id']] = e['time']
         elif e['event'] == 'received':
+            if e['res']['cl_id'] not in clients: return
             reqs, txn = clients[e['res']['cl_id']]['reqs'], clients[e['res']['cl_id']]['txn']
             if 'from_switch' not in e['res']: e['res']['from_switch'] = False
-            st['end'] = e['time']
             st['recv_count'] += 1
 
             if e['res']['status'] == 'ABORT' and e['res']['from_switch']:
@@ -132,6 +145,8 @@ def getTpccStats(filename):
 
     for txn_name, latencies in txn_latencies.items():
         st['tpcc_' + txn_name + '_lat'] = np.mean(latencies)
+        st['tpcc_' + txn_name + '_lat_p99'] = np.percentile(latencies, 99)
+        st['tpcc_' + txn_name + '_lat_p95'] = np.percentile(latencies, 95)
 
     # How many times is a TXN retried until commit (i.e. abort cnt)?
     retry_cnts = sum([cl_aborts[cl_id].values() for cl_id in cl_aborts], [])
@@ -162,7 +177,12 @@ def getExperimentStats(experiment_dir):
     if len(client_log_filenames) < 1: raise Exception("No client logs found in: %s"%log_dir)
     client_names = [path.basename(f).split('.log')[0] for f in client_log_filenames]
 
-    cl_stats = [dict(getClientStats(f), **dict(name=name)) for name, f
+    start_times, end_times = zip(*map(getLogTimes, client_log_filenames))
+    start_cutoff, end_cutoff = max(start_times), min(end_times)
+    start_cutoff += 0.5
+    end_cutoff -= 0.5
+
+    cl_stats = [dict(getClientStats(f, start=start_cutoff, end=end_cutoff), **dict(name=name)) for name, f
             in zip(client_names, client_log_filenames)]
 
     summary = dict()
@@ -172,12 +192,8 @@ def getExperimentStats(experiment_dir):
     #summary['srv_recv'] = srv_stats['recv_count']
     #summary['srv_abort'] = srv_stats['store_abort_cnt']
 
-    summary['first_start_time'] = min([st['start'] for st in cl_stats])
-    summary['last_start_time'] = max([st['start'] for st in cl_stats])
-    summary['first_end_time'] = min([st['end'] for st in cl_stats])
-    summary['last_end_time'] = max([st['end'] for st in cl_stats])
-    summary['elapsed_time'] = summary['last_end_time'] - summary['first_start_time']
-    summary['concurrent_time'] = summary['first_end_time'] - summary['last_start_time']
+    summary['total_duration'] = max(end_times) - min(start_times)
+    summary['duration'] = end_cutoff - start_cutoff
 
     summary['store_abort_cnt'] = sum([st['store_abort_cnt'] for st in cl_stats]) # aborted by store
     summary['switch_abort_cnt'] = sum([st['switch_abort_cnt'] for st in cl_stats])  # normally aborted by switch
@@ -197,15 +213,15 @@ def getExperimentStats(experiment_dir):
     summary['asrt_txn_latency'] = np.mean(asrt_txn_latencies) if asrt_txn_latencies else 0
     summary['p99_asrt_txn_latency'] = np.percentile(asrt_txn_latencies, 99) if asrt_txn_latencies else 0
     summary['p95_asrt_txn_latency'] = np.percentile(asrt_txn_latencies, 95) if asrt_txn_latencies else 0
-    summary['othr_txn_latency'] = np.mean(othr_txn_latencies)
+    summary['othr_txn_latency'] = np.mean(othr_txn_latencies) if othr_txn_latencies else 0
 
     summary['all_txn_latency'] = np.mean(all_txn_latencies)
     summary['p99_all_txn_latency'] = np.percentile(all_txn_latencies, 99)
     summary['p95_all_txn_latency'] = np.percentile(all_txn_latencies, 95)
 
-    summary['all_txn_rate'] = len(all_txn_latencies) / sum(all_txn_latencies)
-    summary['asrt_txn_rate'] = len(asrt_txn_latencies) / sum(asrt_txn_latencies) if asrt_txn_latencies else 0
-    summary['othr_txn_rate'] = len(othr_txn_latencies) / sum(othr_txn_latencies)
+    summary['all_txn_rate'] = len(all_txn_latencies) / summary['duration']
+    summary['asrt_txn_rate'] = len(asrt_txn_latencies) / summary['duration']
+    summary['othr_txn_rate'] = len(othr_txn_latencies) / summary['duration']
 
     summary['all_txn_abrt_cnt'] = np.mean(all_txn_abrt_cnts)
 

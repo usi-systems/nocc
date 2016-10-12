@@ -13,8 +13,8 @@ R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 op_name_to_type = {'R': TXN_READ, 'W': TXN_WRITE, 'A': TXN_VALUE}
 
 class TxnEngine:
-    re_tmpl = re.compile('([A-Z]+)\(([^,]+),?\s*([^)]+)?\)')
-    re_value = re.compile('^([0-9]+|[a-z])\s*(([+-])\s*([0-9]+|[a-z]))?$')
+    re_tmpl = re.compile('([a-zA-Z]+)\(([^,]+),?\s*([^)]+)?\)')
+    re_value = re.compile('^([0-9]+|[a-zA-Z])\s*(([+-])\s*([0-9]+|[a-zA-Z]))?$')
 
     def __init__(self, templates, p, count=None, duration=None):
         assert len(templates) == len(p)

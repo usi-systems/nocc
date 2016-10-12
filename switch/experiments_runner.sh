@@ -13,7 +13,6 @@ TORUN_DIR="$EXPERIMENTS_DIR/torun"
 
 while true
 do
-    killall python
 
     experiment_dirname=$(ls -rt $TORUN_DIR | head -n1)
     if [ -z $experiment_dirname ] ; then
@@ -25,6 +24,7 @@ do
 
     json_file="$experiment_dir/experiment.json"
     mkdir "$experiment_dir/logs"
+    killall python 2> "$experiment_dir/logs/before"
     time ./run_experiment.sh $json_file > "$experiment_dir/logs/stdout" 2> "$experiment_dir/logs/stderr"
 
     mv $experiment_dir $DONE_DIR
