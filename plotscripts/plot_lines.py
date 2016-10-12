@@ -66,6 +66,7 @@ def plot_lines(data, xlabel=None, ylabel=None, title=None, label_order=None):
     handles = [h[0] for h in handles]
     #ax.legend(loc='upper left', handles=handles, labels=labels)
     ax.legend(loc='best', fancybox=True, framealpha=0.5, handles=handles, labels=labels)
+    fig.tight_layout()
     return fig
 
 

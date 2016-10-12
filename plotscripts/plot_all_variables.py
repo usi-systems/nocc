@@ -70,7 +70,7 @@ def _save_tsv(data, filename):
 
 def plot_variables(fh=None, filename=None, out_dir="./",
         label_field='mode', label_order=None, out_tsv=False,
-        err_field_suffix=None, skip_single=False,
+        err_field_suffix=None, skip_single=False, no_title=False,
         independent_vars=None, plot_independent_vars=None, dependent_vars=None):
     assert(fh or filename)
     assert(independent_vars)
@@ -99,7 +99,7 @@ def plot_variables(fh=None, filename=None, out_dir="./",
 
                 data = _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars, err_field=err_field)
                 if skip_single and len(data) < len(labels)*2: continue
-                title = "%s vs. %s" % (ind_var, dep_var)
+                title = None if no_title else "%s vs. %s" % (ind_var, dep_var)
                 name = "%s_vs_%s_%s" % (ind_var, dep_var,
                         '_'.join(["%s%s"%(v,k) for k,v in fixed_ind_vars.iteritems()]))
                 fig = plot_lines(data, xlabel=ind_var, ylabel=dep_var,
@@ -137,6 +137,8 @@ if __name__ == '__main__':
             action='store_true', default=False)
     parser.add_argument('--out-tsv', help='Output the TSV to generate each plot',
             action='store_true', default=False)
+    parser.add_argument('--no-title', help='Disable title for each plot',
+            action='store_true', default=False)
     args = parser.parse_args()
 
     if not os.path.exists(args.out_dir):
@@ -146,6 +148,7 @@ if __name__ == '__main__':
             fh = sys.stdin if args.filename == '-' else None,
             filename = args.filename if args.filename != '-' else None,
             out_dir = args.out_dir,
+            no_title = args.no_title,
             skip_single = args.skip_single,
             out_tsv = args.out_tsv,
             label_field = args.label,
