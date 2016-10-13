@@ -308,7 +308,7 @@ class GotthardClient:
             req_data = req.pack()
             self.sock.sendto(req_data, self.store_addr)
             self._log("sent", req=req)
-            wait = max(MIN_INTER_MSG_SEND_WAIT * req.frag_seq, MAX_INTER_MSG_SEND_WAIT)
+            wait = min(MIN_INTER_MSG_SEND_WAIT * req.frag_seq, MAX_INTER_MSG_SEND_WAIT)
             if wait:
                 time.sleep(wait)
 
