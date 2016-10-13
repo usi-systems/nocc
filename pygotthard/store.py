@@ -75,7 +75,7 @@ def sendResp(req, status, ops, addr):
         sock.sendto(r.pack(), addr)
         if args.verbosity > 1: print "<=", r
         if log: log.log("sent", res=r)
-        wait = max(MIN_INTER_MSG_SEND_WAIT * req.frag_seq, MAX_INTER_MSG_SEND_WAIT)
+        wait = min(MIN_INTER_MSG_SEND_WAIT * req.frag_seq, MAX_INTER_MSG_SEND_WAIT)
         if wait:
             time.sleep(wait)
 
