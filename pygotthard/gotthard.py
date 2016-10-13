@@ -246,7 +246,7 @@ class GotthardClient:
         self.sock.bind(('', 0))
         self.cl_addr = self.sock.getsockname()
         self.cl_name = ':'.join(map(str, self.cl_addr))
-        if not self.cl_id:
+        if self.cl_id is None:
             self.cl_id = abs(hash(self.cl_name)) % 2**32
         if self.log_filename: self.log = GotthardLogger(self.log_filename)
         elif self.log_dir: self.log = GotthardLogger(os.path.join(self.log_dir, 'cl%d.log'%self.cl_id))
