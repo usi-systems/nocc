@@ -48,15 +48,15 @@ def plot_lines(data, xlabel=None, ylabel=None, title=None, label_order=None):
         x, y, yerr = zip(*points)
         all_x += x
         all_y += y
-        handles += ax.errorbar(x, y, yerr=yerr, label=label,
+        handles += ax.errorbar(x, y, yerr=yerr, label=label, linewidth=3,
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
 
     if not title is None: ax.set_title(title)
     if not xlabel is None: ax.set_xlabel(xlabel)
     if not ylabel is None: ax.set_ylabel(ylabel)
     y1, y2, x1, x2 = min(all_y), max(all_y), min(all_x), max(all_x)
-    ax.set_ylim([y1 - (y1*0.1), y2 + (y2*0.1)])
-    ax.set_xlim([x1 - (x1*0.1), x2 + (x2*0.1)])
+    ax.set_ylim([0, y2 + (y2-y1)*0.1])
+    ax.set_xlim([x1, x2])
     ax.grid()
     #if _should_use_log(all_x):
     #    ax.set_xscale('symlog', linthreshx=1)
@@ -66,6 +66,7 @@ def plot_lines(data, xlabel=None, ylabel=None, title=None, label_order=None):
     handles = [h[0] for h in handles]
     #ax.legend(loc='upper left', handles=handles, labels=labels)
     ax.legend(loc='best', fancybox=True, framealpha=0.5, handles=handles, labels=labels)
+    fig.tight_layout()
     return fig
 
 
