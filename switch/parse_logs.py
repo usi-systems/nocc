@@ -143,10 +143,16 @@ def getTpccStats(filename):
         st['tpcc_' + txn_name + '_cnt'] = int(r[1].strip())
         st['tpcc_' + txn_name + '_rate'] = float(r[3].strip())
 
+    all_latencies = []
     for txn_name, latencies in txn_latencies.items():
+        all_latencies += latencies
         st['tpcc_' + txn_name + '_lat'] = np.mean(latencies)
         st['tpcc_' + txn_name + '_lat_p99'] = np.percentile(latencies, 99)
         st['tpcc_' + txn_name + '_lat_p95'] = np.percentile(latencies, 95)
+
+    st['tpcc_avg_lat'] = np.mean(all_latencies)
+    st['tpcc_lat_p99'] = np.percentile(all_latencies, 99)
+    st['tpcc_lat_p95'] = np.percentile(all_latencies, 95)
 
     # How many times is a TXN retried until commit (i.e. abort cnt)?
     retry_cnts = sum([cl_aborts[cl_id].values() for cl_id in cl_aborts], [])
