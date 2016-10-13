@@ -8,7 +8,7 @@ if not havedisplay:
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-from plot_lines import plot_lines
+from plot_lines import plot_lines, load_conf
 from tsv_to_db import tsvToDb
 
 
@@ -63,13 +63,14 @@ def _get_fields(cur):
     cur.execute('SELECT * FROM t')
     return [desc[0] for desc in cur.description]
 
-def _save_tsv(data, filename):
+def _save_tsv(data, filename, xname='X', yname='Y'):
     with open(filename, 'w') as f:
-        f.write('\t'.join(['LABEL', 'X', 'Y', 'YERR']) + '\n')
+        f.write('\t'.join(['LABEL', xname, yname, 'ERR']) + '\n')
         f.write('\n'.join(map(lambda r: '\t'.join(map(str, r)), data)))
 
 def plot_variables(fh=None, filename=None, out_dir="./",
         label_field='mode', label_order=None, out_tsv=False,
+        conf=None, linewidth=None, markersize=None,
         err_field_suffix=None, skip_single=False, no_title=False,
         independent_vars=None, plot_independent_vars=None, dependent_vars=None):
     assert(fh or filename)
@@ -101,10 +102,13 @@ def plot_variables(fh=None, filename=None, out_dir="./",
                 if skip_single and len(data) < len(labels)*2: continue
                 title = None if no_title else "%s vs. %s" % (ind_var, dep_var)
                 name = "%s_vs_%s_%s" % (ind_var, dep_var,
-                        '_'.join(["%s%s"%(v,k) for k,v in fixed_ind_vars.iteritems()]))
+                        '_'.join(["%s%s"%(str(v).replace('.', '_'),k) for k,v in fixed_ind_vars.iteritems()]))
                 fig = plot_lines(data, xlabel=ind_var, ylabel=dep_var,
+                        conf=conf,
+                        markersize=markersize if markersize else 2,
+                        linewidth=linewidth if linewidth else 2,
                         title=title, label_order=label_order)
-                if out_tsv: _save_tsv(data, os.path.join(out_dir, name + '.tsv'))
+                if out_tsv: _save_tsv(data, os.path.join(out_dir, name + '.tsv'), xname=ind_var, yname=dep_var)
                 fig.savefig(os.path.join(out_dir, name + '.png'))
                 plt.close(fig)
 
@@ -131,6 +135,12 @@ if __name__ == '__main__':
             type=str, required=False)
     parser.add_argument('--dep-vars', '-d', help='Comma-separated list of dependent variable names',
             type=str, required=True)
+    parser.add_argument('--conf', help='A python config file with [style] and [labels] sections',
+            type=str, required=False, default=None)
+    parser.add_argument('--linewidth', help='line width',
+            type=int, action="store", default=None, required=False)
+    parser.add_argument('--markersize', help='marker (point) size',
+            type=int, action="store", default=None, required=False)
     parser.add_argument('--err-suffix', '-e', help='Append this string to column name to find its error (std dev)',
             type=str, required=False, default=None)
     parser.add_argument('--skip-single', help='Don\'t plot graphs that have a single data point',
@@ -148,7 +158,10 @@ if __name__ == '__main__':
             fh = sys.stdin if args.filename == '-' else None,
             filename = args.filename if args.filename != '-' else None,
             out_dir = args.out_dir,
+            conf = load_conf(args.conf) if args.conf else None,
             no_title = args.no_title,
+            linewidth = args.linewidth,
+            markersize = args.markersize,
             skip_single = args.skip_single,
             out_tsv = args.out_tsv,
             label_field = args.label,
