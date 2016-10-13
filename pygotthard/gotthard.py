@@ -28,7 +28,7 @@ TXN_UPDATED = 4 # response: the object was just updated to this value
 txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
 
 MIN_INTER_MSG_SEND_WAIT = 0.000050
-MAX_INTER_MSG_SEND_WAIT = 0.000200
+MAX_INTER_MSG_SEND_WAIT = 0.000400
 
 VALUE_SIZE = 128
 NULL_VALUE = '\0'*VALUE_SIZE

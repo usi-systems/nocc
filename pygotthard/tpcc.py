@@ -313,9 +313,9 @@ class BitKeyMap:
                     if len(self.unused_keys) == 0:
                         raise Exception("Mapping is full; all bits have been exhausted")
                     self.mapping[key_string] = self.unused_keys.pop()
+                return self.mapping[key_string]
             finally:
                 self.rwlock.release_write()
-                self.rwlock.acquire_read()
             #print "BITKEYMAP_NEW_KEY\t%d\t%s\t%d" % (threading.current_thread().ident, key_string, self.mapping[key_string])
         k = self.mapping[key_string]
         self.rwlock.release_read()
