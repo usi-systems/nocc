@@ -30,8 +30,8 @@ PARAMS={
 if __name__ == '__main__':
     for mode in MODES:
         for mode in MODES:
-            Popen(['ssh', SWITCH_HOST, 'pkill -f gotthard'])
-            Popen(['ssh', STORE_HOST, 'pkill -f gotthard'])
+            Popen(['ssh', SWITCH_HOST, 'pkill -f gotthard']).wait()
+            Popen(['ssh', STORE_HOST, 'pkill -f gotthard']).wait()
             store_cmd = [
                 'ssh',
                 STORE_HOST,
