@@ -5,7 +5,7 @@ local f_udp_dstport = Field.new("udp.dstport")
 -- create a function to dissect it
 function gotthard_proto.dissector(buffer,pinfo,tree)
     --if f_udp_dstport() and f_udp_dstport().value == 9999 then
-    local hdrSize = 11
+    local hdrSize = 13
     local valueSize = 128
     local opSize = valueSize + 5
     local opNames = {'NOP', 'READ', 'WRITE', 'VALUE', 'UPDATED'}
@@ -15,9 +15,11 @@ function gotthard_proto.dissector(buffer,pinfo,tree)
     subtree:add(buffer(0,1),"from_switch: " .. buffer(0,1):bitfield(1,1))
     subtree:add(buffer(1,4),"cl_id: " .. buffer(1,4):uint())
     subtree:add(buffer(5,4),"req_id: " .. buffer(5,4):uint())
-    subtree:add(buffer(9,1),"status: " .. buffer(9,1):uint())
-    local op_cnt = buffer(10,1):uint()
-    subtree:add(buffer(10,1),"op_cnt: " .. op_cnt)
+    subtree:add(buffer(9,1),"frag_seq: " .. buffer(9,1):uint())
+    subtree:add(buffer(10,1),"frag_cnt: " .. buffer(10,1):uint())
+    subtree:add(buffer(11,1),"status: " .. buffer(11,1):uint())
+    local op_cnt = buffer(12,1):uint()
+    subtree:add(buffer(12,1),"op_cnt: " .. op_cnt)
     for i = 0, op_cnt-1 do
         local op_type = buffer(hdrSize+(i*opSize),1):uint()
         subtree:add(buffer(hdrSize+(i*opSize),1),"op_type: " .. opNames[op_type+1])
