@@ -40,6 +40,7 @@ if __name__ == '__main__':
         assert(store.poll() is None)
         assert(switch.poll() is None)
 
+        client = None
         try:
             with open(LOGDIR + 'params.json', 'w') as f:
                 json.dump(PARAMS, f)
@@ -64,9 +65,8 @@ if __name__ == '__main__':
         finally:
             kill_processes(STORE_HOST)
             kill_processes(SWITCH_HOST)
-            kill_processes('localhost')
-            for proc in allprocs:
-                proc.kill()
+            if client:
+                client.kill()
         run_dir = mode + '_' + str(delta) + 'delta'
         subprocess.call(['mkdir', LOGDIR + run_dir])
         subprocess.call(" ".join(['mv',
