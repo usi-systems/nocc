@@ -112,9 +112,11 @@ action do_store_update%i(in bit<1> opti_enabled) {
         (gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[%i].key];
-    //is_opti_cached_register[gotthard_op[%i].key] = (bit<1>)0;
-    is_opti_cached_register[gotthard_op[%i].key] =
-        opti_enabled == 0 or (opti_enabled == 1 and gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT) ? (bit<1>) 0 : 1;
+    is_opti_cached_register[gotthard_op[%i].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[%i].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[%i].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[%i].key] : 0;
 }
 """.replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_store_update%d(opti_enabled);'%(idx-1))
 #""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_store_update%d();'%(idx-1))
