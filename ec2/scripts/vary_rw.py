@@ -6,22 +6,14 @@ import time
 import json
 
 BINDIR='/home/pacheco/workspace/gotthard/pygotthard/'
-LOGDIR='/home/pacheco/workspace/gotthard/ec2/LOGS/'
-STORE_PORT=9990
-SWITCH_PORT=9991
+LOGDIR='/home/pacheco/workspace/gotthard/ec2/RW_LOGS/'
+STORE_PORT=9992
+SWITCH_PORT=9993
 
-# first plot
-DELTA=[0, 0.2, 0.4, 0.5, 0.6, 0.8]
-RW_VALUES=[0.5]
-CLIENT_VALUES=[8]
 # # second plot
-# DELTA=[0.2]
-# RW_VALUES=[0, 0.1, 0.2, 0.4, 0.6, 0.8]
-# CLIENT_VALUES=[8]
-# # third plot
-# DELTA=[0.2]
-# RW_VALUES=[0.5]
-# CLIENT_VALUES=[1, 2, 4, 6, 8, 10, 12, 16, 32, 64]
+DELTA=[0.2]
+RW_VALUES=[0, 0.1, 0.2, 0.4, 0.6, 0.8]
+CLIENT_VALUES=[8]
 
 MODES=['forward', 'read_cache', 'early_abort', 'optimistic_abort']
 

@@ -3,7 +3,7 @@ import os
 import time
 
 BINDIR=os.path.expanduser("~/workspace/gotthard/pygotthard/")
-LOGDIR=os.path.expanduser("~/workspace/gotthard/LOGS/")
+LOGDIR=os.path.expanduser("~/workspace/gotthard/ec2/LOGS/")
 
 STORE_PORT=9990
 SWITCH_PORT=9991
