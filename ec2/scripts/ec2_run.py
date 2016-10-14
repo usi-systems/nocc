@@ -29,47 +29,63 @@ PARAMS={
 
 if __name__ == '__main__':
     for mode in MODES:
-        print 'killing processes...'
-        kill_processes(STORE_HOST)
-        kill_processes(SWITCH_HOST)
-        print 'starting store...'
-        store = run_store(STORE_HOST)
-        print 'starting switch...'
-        switch = run_switch(SWITCH_HOST, STORE_HOST, mode)
-        time.sleep(1)
-        assert(store.poll() is None)
-        assert(switch.poll() is None)
+        for mode in MODES:
+            store_cmd = [
+                'ssh',
+                STORE_HOST,
+                BINDIR + 'store.py',
+                '-p %d' % (STORE_PORT),
+                '-l' + LOGDIR + 'store.log',
+                #'-v2',
+            ]
+            switch_cmd = [
+                'ssh',
+                SWITCH_HOST,
+                BINDIR + 'software_switch.py',
+                '-p', str(SWITCH_PORT),
+                '--mode', mode,
+                STORE_HOST,
+                str(STORE_PORT),
+            ]
 
-        client = None
-        try:
-            with open(LOGDIR + 'params.json', 'w') as f:
-                json.dump(PARAMS, f)
+            allprocs = []
+            try:
+                store = subprocess.Popen(store_cmd)
+                allprocs.append(store)
+                print switch_cmd
+                switch = subprocess.Popen(switch_cmd)
+                allprocs.append(switch)
 
-            for rw in RW_VALUES:
-                for clients in CLIENT_VALUES:
-                    client_cmd = [
-                        BINDIR + 'load_generator.py',
-                        '-n', str(clients),
-                        '-d', str(PARAMS['duration']),
-                        '--transactions', PARAMS['transactions'],
-                        '-p', str(rw),
-                        '--id', '0',
-                        # '--think', str(PARAMS['think']),
-                        # '--think-var', str(PARAMS['think_var']),
-                        '--log', LOGDIR + 'client-n%s-p%s.log' % (clients, rw),
-                        SWITCH_HOST, str(SWITCH_PORT),
-                    ]
-                    print client_cmd
-                    client = subprocess.Popen(client_cmd)
-                    client.wait()
-        finally:
-            kill_processes(STORE_HOST)
-            kill_processes(SWITCH_HOST)
-            if client:
-                client.kill()
-        run_dir = mode + '_' + str(delta) + 'delta'
-        subprocess.call(['mkdir', LOGDIR + run_dir])
-        subprocess.call(" ".join(['mv',
-                                  LOGDIR + '*.log', LOGDIR + '*.json',
-                                  LOGDIR + run_dir]),
-                        shell=True)
+                with open(LOGDIR + 'params.json', 'w') as f:
+                    json.dump(PARAMS, f)
+
+                time.sleep(1)
+
+                for rw in RW_VALUES:
+                    for clients in CLIENT_VALUES:
+                        client_cmd = [
+                            BINDIR + 'load_generator.py',
+                            '-n', str(clients),
+                            '-d', str(PARAMS['duration']),
+                            '--transactions', PARAMS['transactions'],
+                            '-p', str(rw),
+                            '--id', '0',
+                            # '--think', str(PARAMS['think']),
+                            # '--think-var', str(PARAMS['think_var']),
+                            '--log', LOGDIR + 'client-n%s-p%s.log' % (clients, rw),
+                            SWITCH_HOST, str(SWITCH_PORT),
+                        ]
+                        print client_cmd
+                        client = subprocess.Popen(client_cmd)
+                        allprocs.append(client)
+                        client.wait()
+                        allprocs.remove(client)
+            finally:
+                for proc in allprocs:
+                    proc.kill()
+            run_dir = mode + '_' + str(delta) + 'delta'
+            subprocess.call(['mkdir', LOGDIR + run_dir])
+            subprocess.call(" ".join(['mv',
+                                      LOGDIR + '*.log', LOGDIR + '*.json',
+                                      LOGDIR + run_dir]),
+                            shell=True)
