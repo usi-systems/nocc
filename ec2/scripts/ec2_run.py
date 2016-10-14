@@ -30,6 +30,8 @@ PARAMS={
 if __name__ == '__main__':
     for mode in MODES:
         for mode in MODES:
+            Popen(['ssh', SWITCH_HOST, 'pkill -f gotthard'])
+            Popen(['ssh', STORE_HOST, 'pkill -f gotthard'])
             store_cmd = [
                 'ssh',
                 STORE_HOST,
@@ -83,7 +85,9 @@ if __name__ == '__main__':
             finally:
                 for proc in allprocs:
                     proc.kill()
-            run_dir = mode + '_' + str(delta) + 'delta'
+                Popen(['ssh', SWITCH_HOST, 'pkill -f gotthard'])
+                Popen(['ssh', STORE_HOST, 'pkill -f gotthard'])
+            run_dir = mode
             subprocess.call(['mkdir', LOGDIR + run_dir])
             subprocess.call(" ".join(['mv',
                                       LOGDIR + '*.log', LOGDIR + '*.json',
