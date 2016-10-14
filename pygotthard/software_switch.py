@@ -199,8 +199,9 @@ class SoftwareSwitch:
                 continue
 
             # Update our cache with any VALUE op from the store
-            for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
-                self.cache.insert(o=o)
+            if res.status == STATUS_ABORT:
+                for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
+                    self.cache.insert(o=o)
 
             self._sendToClient(res)
 
