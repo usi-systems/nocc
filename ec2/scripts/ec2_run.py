@@ -12,8 +12,7 @@ SWITCH_HOST='ec2-54-183-78-222.us-west-1.compute.amazonaws.com'
 SWITCH_IP='54.183.78.222'
 
 RW_VALUES=[0.5]
-#CLIENT_VALUES=[1, 2, 4, 6, 8, 10, 12, 16, 32, 64]
-CLIENT_VALUES=[2]
+CLIENT_VALUES=[1, 2, 4, 6, 8, 10, 12, 16]
 
 MODES=['forward', 'read_cache', 'early_abort', 'optimistic_abort']
 
@@ -74,6 +73,7 @@ if __name__ == '__main__':
                             '--id', '0',
                             # '--think', str(PARAMS['think']),
                             # '--think-var', str(PARAMS['think_var']),
+                            '-r', '0.5',
                             '--log', LOGDIR + 'client-n%s-p%s.log' % (clients, rw),
                             SWITCH_HOST, str(SWITCH_PORT),
                         ]
