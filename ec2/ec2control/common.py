@@ -1,7 +1,7 @@
 NODES=[
     ('store', 'us-east-1', 'a', 'subnet-108edc66', 'ami-2d39803a', 't2.medium'),
     ('switch', 'us-west-1', 'a', 'subnet-c86afdad',  'ami-48db9d28', 't2.medium'),
-    ('load', 'us-west-1', 'a', 'subnet-c86afdad', 'ami-48db9d28', 't2.medium'),
+    #('load', 'us-west-1', 'a', 'subnet-c86afdad', 'ami-48db9d28', 't2.medium'),
     ('client', 'us-west-2', 'a', 'subnet-aa66d2ce', 'ami-d732f0b7', 't2.medium'),
 ]
 

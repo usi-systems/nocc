@@ -227,22 +227,29 @@ class Store:
 
 class GotthardClient:
 
-    def __init__(self, store_addr=None, logger=None, log_filename=None, log_dir=None, cl_id=None):
+    def __init__(self, store_addr=None, logger=None, log_filename=None, log_dir=None, cl_id=None, resend_timeout=None):
         self.store_addr = store_addr
         self.resolved_store_addr = None
         self.recv_queue = {}
+        # maps outstanding requests with the time they were sent
+        self.outstanding = {}
         self.req_id_seq = 0
         self.closed = True
         self.cl_id = cl_id
         self.log = logger
         self.log_filename = log_filename
         self.log_dir = log_dir
+        self.resend_timeout = resend_timeout
 
     def open(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.resolved_store_addr = (socket.gethostbyname_ex(self.store_addr[0])[2][0],
                                     self.store_addr[1])
-        self.sock.settimeout(10.0)
+        if self.resend_timeout:
+            # recvfrom will timeout every 100ms and then we'll check whether resend_timeout has elapsed
+            self.sock.settimeout(0.1)
+        else:
+            self.sock.settimeout(10)
         self.sock.bind(('', 0))
         self.cl_addr = self.sock.getsockname()
         self.cl_name = ':'.join(map(str, self.cl_addr))
@@ -303,11 +310,17 @@ class GotthardClient:
                 ops=ops[i*GOTTHARD_MAX_OP:(i*GOTTHARD_MAX_OP)+GOTTHARD_MAX_OP]))
         return reqs
 
-    def sendreq(self, reqs):
+    def sendreq(self, reqs, is_resend=False):
+        if reqs:
+            # store together with send time, for resending on timeout
+            self.outstanding[reqs[0].req_id] = (time.time(), reqs)
         for req in reqs:
             req_data = req.pack()
             self.sock.sendto(req_data, self.store_addr)
-            self._log("sent", req=req)
+            if is_resend:
+                self._log("resent", req=req)
+            else:
+                self._log("sent", req=req)
             wait = min(MIN_INTER_MSG_SEND_WAIT * req.frag_seq, MAX_INTER_MSG_SEND_WAIT)
             if wait:
                 time.sleep(wait)
@@ -340,6 +353,7 @@ class GotthardClient:
 
         res = self._reassemble(self.recv_queue[ready[0]]['q'])
         del self.recv_queue[ready[0]]
+        del self.outstanding[res.req_id]
         return res
 
     def recvres(self, req_id=None):
@@ -351,8 +365,16 @@ class GotthardClient:
                 data, fromaddr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
                 assert(fromaddr == self.resolved_store_addr)
             except:
-                print 'Waiting for req_id:', req_id
-                raise
+                # if resend_timeout is set, resend every transaction that has timed out
+                if self.resend_timeout:
+                    now = time.time()
+                    for (req_id, (send_time, req)) in self.outstanding.items():
+                        if now - send_time > self.resend_timeout:
+                            self.sendreq(req, is_resend=True)
+                    continue
+                else:
+                    print 'Waiting for req_id:', req_id
+                    raise
             res = TxnMsg(binstr=data)
             self._log("received", res=res)
             self._push_recvqueue(res)

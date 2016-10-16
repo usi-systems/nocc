@@ -2,35 +2,41 @@
 A key/value store that support r/w operations.
 
 ## Running
-Start the store server:
+Start the store listenning on port 9999:
 
-    python store.py -p 9090
+    ./store.py -p 9999
 
-Run some basic tests:
+Start the switch:
 
-    python test.py 127.0.0.1 9090
+    ./software_switch.py -p 9991 -d 0.001 -D 0.01 -v 1 -m optimistic_abort 127.0.0.1 9999
 
-## Increment Clients
-Start two clients that increment a counter 1000 times each:
+Where:
+  - `-p 9991`: listen on port 9991
+  - `-d 0.001`: simulate client-switch latency of 1ms
+  - `-D 0.01`: simulate store-switch latency of 10ms
+  - `-v 1`: verbosity level 1
+  - `-m optimistic_abort`: use optimistic abort mode
 
-    python client_inc.py -n 2 -c 1000 127.0.0.1 9090
+## Tests
+Once the store and switch are running, test that optimistic abort works:
 
-Make sure to restart the server first!
+    ./test/test_opti_abort.py 127.0.0.1 9991
 
-## Software Cache Switch
-The cache switch logic is implemented in `software_switch.py`. It acts as a proxy between the clients and the store.
+To test the other modes, you have to stop the switch, and restart it with another mode. For example, to test `early_abort` mode, start the switch with the option `-m early_abort`, and run the test:
 
-### Example
-Start the server:
+    ./test/test_early_abort.py 127.0.0.1 9991
 
-    python store.py -p 9090
+## Running a workload
 
-In another terminal, start the software switch listening on port `9091`:
+This will run the classic atomic increment with two clients:
 
-    python software_switch.py -p 9091 127.0.0.1 9090
+    ./load_generator.py -l out.log -n 2 -c 100 -T "A(x,x)W(x,x+1)|R(x)" -p 0.1 127.0.0.1 9999
 
-Run some clients, connecting to the software switch (N.B. they are connecting to the software switch's port, *not* the store's):
+Where:
+  - `-l out.log`: output log
+  - `-n 2`: run two clients in parallel
+  - `-d 30`: run for 30s
+  - `-T "A(x,x)W(x,x+1)|R(x)"`: the TXNs to execute, either `A(x, x)W(x, x+1)` (assert `x`, then increment `x`) or `R(x)` (read `x`).
+  - `-p 0.1`: the probability of executing each TXN. If you don't specify all the probabilities, the missing ones will be automatically computed. In this case, the first TXN will be executed with P=0.1 and the second with P=0.9 (automatically computed).
 
-    python client_inc.py -n 2 -c 1000 127.0.0.1 9091
-
-You will notice that the store never sends reject messages, because those are handled by the switch.
+Alternatively, you can run it with `-c 100` to execute 100 TXNs, and then stop.

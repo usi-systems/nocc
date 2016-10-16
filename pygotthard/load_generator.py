@@ -105,8 +105,8 @@ class TxnEngine:
 
 
 class EngineClient(Thread, GotthardClient):
-    def __init__(self, count, duration, log, store_addr, think, think_var, txn_templates, pdf):
-        GotthardClient.__init__(self, store_addr=store_addr, logger=log)
+    def __init__(self, count, duration, log, store_addr, think, think_var, txn_templates, pdf, resend_timeout):
+        GotthardClient.__init__(self, store_addr=store_addr, logger=log, resend_timeout=resend_timeout)
         Thread.__init__(self)
         self.think = think
         self.think_var = think_var
@@ -134,6 +134,7 @@ if __name__ == '__main__':
     parser.add_argument("port", type=int, help="server port")
     parser.add_argument("--num-clients", "-n", type=int, help="number of parallel clients", default=1)
     parser.add_argument("--count", "-c", type=int, help="number of transactions to perform", default=None)
+    parser.add_argument("--resend-timeout", "-r", type=float, help="timeout to resend request, in secs", default=None)
     parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     parser.add_argument("--id", "-i", type=int, help="assign cl_id starting from this value", default=None)
     parser.add_argument("--think", "-t", type=float, help="think time (s) between successful transactions", default=None)
@@ -163,7 +164,7 @@ if __name__ == '__main__':
 
     clients = []
     for n in xrange(args.num_clients):
-        cl = EngineClient(args.count, args.duration, logger, store_addr, args.think, args.think_var, args.transactions, pdf)
+        cl = EngineClient(args.count, args.duration, logger, store_addr, args.think, args.think_var, args.transactions, pdf, args.resend_timeout)
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 

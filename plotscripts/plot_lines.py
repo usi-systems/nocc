@@ -41,13 +41,84 @@ markers = itertools.cycle(('o', '^', 'D', 's', '+', 'x', '*' ))
 linestyles = itertools.cycle(("-.","--","-",":"))
 colors = itertools.cycle(('r', 'g', 'b', 'c', 'm', 'y', 'k'))
 
+def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
+    field_names = data.dtype.names[1:]
+    N = len(field_names)
+    ind = np.arange(N)  # the x locations for the groups
+    width = 0.2       # the width of the bars
+
+    local_label_order = []
+    if conf and 'linestyle' in conf:
+        for lbl, style in conf['linestyle'].items()[1:]:
+            local_label_order.append(lbl)
+            label_style_hist[lbl] = dict(zip(['color', 'line', 'marker'], style.split()))
+    if conf and 'style' in conf:
+        if 'fontsize' in conf['style']: plt.rc('font', size=conf['style']['fontsize'])
+        if 'showtitle' in conf['style'] and conf['style']['showtitle'].lower() in ['no', 'false', '0']:
+            title = None
+        if 'fontweight' in conf['style']:
+            plt.rc('font', weight=conf['style']['fontweight'])
+            plt.rc('axes', labelweight=conf['style']['fontweight'])
+
+    if not local_label_order:
+        local_label_order = [l for l in label_order] if label_order else label_order_hist
+    labels = set([r[0] for r in data])
+    unseen_labels = [l for l in labels if not l in local_label_order]
+    local_label_order += unseen_labels
+
+    plot_handles = []
+    fig, ax = plt.subplots()
+    ax.grid(False)
+    #ax.yaxis.grid(linestyle='--', linewidth=.1, color='gray')
+
+    i = 0
+    for lbl in local_label_order:
+        vals = [list(r)[1:] for r in data if r[0] == lbl]
+        rects = ax.bar(ind + width*i, vals[0], width,
+                color=label_style_hist[lbl]['color'] if lbl in label_style_hist else colors.next())
+        plot_handles.append(rects)
+        i += 1
+
+    if ylabel: ax.set_ylabel(ylabel)
+    if title: ax.set_title(title)
+    ax.set_xticks(ind + width)
+
+    if conf and 'labels' in conf:
+        field_titles = [conf['labels'][l] if l in conf['labels'] else l for l in field_names]
+    else: field_titles = field_names
+    ax.set_xticklabels(field_titles, rotation=45)
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+
+    ax.legend([r[0] for r in plot_handles], local_label_order,
+            loc='upper center',
+            bbox_to_anchor=(0.5, 1.14),
+            fancybox=True, framealpha=0.0, ncol=2)
+
+    def autolabel(rects):
+        # attach some text labels
+        for rect in rects:
+            height = rect.get_height()
+            ax.text(rect.get_x() + rect.get_width()/2., 1.05*height,
+                    '%g' % height,
+                    ha='center', va='bottom')
+
+    #for r in plot_handles:
+    #    autolabel(r)
+
+    fig.tight_layout()
+    return fig
+
 def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='linear',
         title=None, label_order=None, conf=None, linewidth=2, markersize=2):
     """Plots a 2D array with the format: [[label, x, y, y-dev]]
     """
-    if conf and 'labels' in conf:
-        if ylabel in conf['labels']: ylabel = conf['labels'][ylabel]
-        if xlabel in conf['labels']: xlabel = conf['labels'][xlabel]
+    if conf and 'units' in conf:
+        if ylabel in conf['units']: ylabel = conf['units'][ylabel]
+        if xlabel in conf['units']: xlabel = conf['units'][xlabel]
 
     if conf and 'style' in conf:
         if 'linewidth' in conf['style']: linewidth = conf['style']['linewidth']
@@ -141,6 +212,8 @@ if __name__ == '__main__':
             type=str, required=False, default=None)
     parser.add_argument('--label-order', '-L', help='Comma-separated list of the ordering of labels in the plot',
             type=str, default=None, required=False)
+    parser.add_argument('--bar', help='Plot a bar chart',
+            action='store_true', default=False)
     args = parser.parse_args()
 
     if args.filename == '-':
@@ -156,7 +229,12 @@ if __name__ == '__main__':
 
     if args.title is not None: title = args.title if args.title else None
 
-    fig = plot_lines(data, title=title,
+    if args.bar:
+        fig = plot_bar(data, title=title,
+            conf = load_conf(args.conf) if args.conf else None,
+            ylabel=args.ylabel)
+    else:
+        fig = plot_lines(data, title=title,
             conf = load_conf(args.conf) if args.conf else None,
             linewidth=args.linewidth,
             xlim=args.xlim, ylim=args.ylim,
