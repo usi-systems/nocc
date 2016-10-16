@@ -81,7 +81,7 @@ class StorePort(asyncore.dispatcher):
 class SoftwareSwitch:
 
     def __init__(self, store_addr=None, bind_addr=None, mode='early_abort', verbosity=0,
-            store_threads=4, client_threads=4, store_delay=None, client_delay=None):
+                 store_threads=128, client_threads=128, store_delay=None, client_delay=None):
         self.mode = mode
         self.verbosity = verbosity
         self.store_delay = store_delay
@@ -199,8 +199,9 @@ class SoftwareSwitch:
                 continue
 
             # Update our cache with any VALUE op from the store
-            for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
-                self.cache.insert(o=o)
+            if self.mode != 'optimistic_abort' or res.status == STATUS_ABORT:
+                for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
+                    self.cache.insert(o=o)
 
             self._sendToClient(res)
 
