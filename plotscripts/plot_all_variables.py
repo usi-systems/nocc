@@ -135,7 +135,7 @@ if __name__ == '__main__':
             type=str, required=False)
     parser.add_argument('--dep-vars', '-d', help='Comma-separated list of dependent variable names',
             type=str, required=True)
-    parser.add_argument('--conf', help='A python config file with [style] and [labels] sections',
+    parser.add_argument('--conf', '-c', help='A python config file with [style] and [labels] sections',
             type=str, required=False, default=None)
     parser.add_argument('--linewidth', help='line width',
             type=int, action="store", default=None, required=False)
