@@ -237,8 +237,8 @@ def getExperimentStats(experiment_dir):
     summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
 
     if args.latencies:
-        summary['all_txn_latencies'] = ','.join(map(str, all_txn_latencies))
-        summary['asrt_txn_latencies'] = ','.join(map(str, asrt_txn_latencies))
+        summary['all_txn_latencies'] = ','.join(map(lambda l: str(round(l, 3)), all_txn_latencies))
+        summary['asrt_txn_latencies'] = ','.join(map(lambda l: str(round(l, 3)), asrt_txn_latencies))
 
     if args.tpcc:
         assert len(stdout_log_filenames) == 1
