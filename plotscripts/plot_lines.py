@@ -157,7 +157,12 @@ def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='lin
         x, y, yerr = zip(*points)
         all_x += x
         all_y += y
-        handles += ax.errorbar(x, y, yerr=yerr, label=label, linewidth=linewidth, markersize=markersize,
+
+        label_name = label
+        if conf and 'labels' in conf:
+            if label in conf['labels']: label_name = conf['labels'][label]
+
+        handles += ax.errorbar(x, y, yerr=yerr, label=label_name, linewidth=linewidth, markersize=markersize,
                 elinewidth=1,
                 color=label_style_hist[label]['color'],
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
@@ -180,7 +185,6 @@ def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='lin
     handles, labels = ax.get_legend_handles_labels()
     # remove the errorbars
     handles = [h[0] for h in handles]
-    #ax.legend(loc='upper left', handles=handles, labels=labels)
     ax.legend(loc='best', fancybox=True, framealpha=0.5, handles=handles, labels=labels)
     fig.tight_layout()
     return fig
