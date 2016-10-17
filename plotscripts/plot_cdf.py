@@ -86,14 +86,19 @@ ordered_labels += [l for l in data.keys() if l not in ordered_labels]
 fig = plt.figure(1)
 ax = fig.add_subplot(111)
 
-linestyles = itertools.cycle(("-.","--",":","-"))
+linestyles = itertools.cycle(("-.","--","-",":"))
 
 all_vals = []
-for lbl in ordered_labels:
+for lbl in [l for l in ordered_labels if l in data]:
     vals = sorted(data[lbl])
     all_vals += vals
     ecdf = np.arange(len(vals))/float(len(vals))*100
-    ax.plot(vals, ecdf, label=lbl, linewidth=linewidth,
+
+    label_name = lbl
+    if conf and 'labels' in conf:
+        if lbl in conf['labels']: label_name = conf['labels'][lbl]
+
+    ax.plot(vals, ecdf, label=label_name, linewidth=linewidth,
             color=line_styles[lbl]['color'] if lbl in line_styles else None,
             #linestyle=line_styles[lbl]['line'] if lbl in line_styles else linestyles.next())
             linestyle=linestyles.next())

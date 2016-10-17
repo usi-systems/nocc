@@ -47,9 +47,12 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     ind = np.arange(N)  # the x locations for the groups
     width = 0.2       # the width of the bars
 
+    labels = set([r[0] for r in data])
+
     local_label_order = []
     if conf and 'linestyle' in conf:
         for lbl, style in conf['linestyle'].items()[1:]:
+            if lbl not in labels: continue
             local_label_order.append(lbl)
             label_style_hist[lbl] = dict(zip(['color', 'line', 'marker'], style.split()))
     if conf and 'style' in conf:
@@ -62,7 +65,6 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
 
     if not local_label_order:
         local_label_order = [l for l in label_order] if label_order else label_order_hist
-    labels = set([r[0] for r in data])
     unseen_labels = [l for l in labels if not l in local_label_order]
     local_label_order += unseen_labels
 
@@ -72,10 +74,17 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     #ax.yaxis.grid(linestyle='--', linewidth=.1, color='gray')
 
     i = 0
+    label_names = []
     for lbl in local_label_order:
         vals = [list(r)[1:] for r in data if r[0] == lbl]
         rects = ax.bar(ind + width*i, vals[0], width,
                 color=label_style_hist[lbl]['color'] if lbl in label_style_hist else colors.next())
+
+        label_name = lbl
+        if conf and 'labels' in conf:
+            if lbl in conf['labels']: label_name = conf['labels'][lbl]
+        label_names.append(label_name)
+
         plot_handles.append(rects)
         i += 1
 
@@ -93,7 +102,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
 
-    ax.legend([r[0] for r in plot_handles], local_label_order,
+    ax.legend([r[0] for r in plot_handles], label_names,
             loc='upper center',
             bbox_to_anchor=(0.5, 1.14),
             fancybox=True, framealpha=0.0, ncol=2)
