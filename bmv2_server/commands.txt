@@ -1,0 +1,13 @@
+table_set_default send_frame _drop
+table_set_default forward _drop
+table_set_default ipv4_lpm _drop
+table_set_default t_store_update _nop
+table_set_default t_req_pass1 _nop
+table_set_default t_req_fix _nop
+table_set_default t_opti_update _nop
+table_add t_reply_client do_reply_ok 0 =>
+table_add t_reply_client do_reply_abort 1 =>
+table_set_default drop_tbl _drop
+table_set_default nat _nop
+table_add nat rewrite_addr 52.201.230.66 => 02:df:de:74:04:60 54.213.90.233 02:96:17:7d:80:cf 1
+table_add nat rewrite_addr 54.213.90.233 => 02:df:de:74:04:60 52.201.230.66 02:96:17:7d:80:cf 1
