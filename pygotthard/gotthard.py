@@ -370,10 +370,11 @@ class GotthardClient:
                     now = time.time()
                     for (req_id, (send_time, req)) in self.outstanding.items():
                         if now - send_time > self.resend_timeout:
+                            if req[0].req_id in self.recv_queue: del self.recv_queue[req[0].req_id]
                             self.sendreq(req, is_resend=True)
                     continue
                 else:
-                    print 'Waiting for req_id:', req_id
+                    print 'Client %d Waiting for req_id: %d' % (self.cl_id, req_id)
                     raise
             res = TxnMsg(binstr=data)
             self._log("received", res=res)

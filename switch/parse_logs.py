@@ -15,13 +15,17 @@ args = None
 #warnings.simplefilter("error")
 
 def getLogTimes(filename):
-    with open(filename, 'rb') as fh:
-        first_line = next(fh).decode(errors='replace')
-        fh.seek(-2048, 2)
-        last_line = fh.readlines()[-1].decode(errors='replace')
-    first = json.loads(first_line)
-    last = json.loads(last_line)
-    return (first['time'], last['time'])
+    try:
+        with open(filename, 'rb') as fh:
+            first_line = next(fh).decode(errors='replace')
+            fh.seek(-4096, 2)
+            last_line = fh.readlines()[-1].decode(errors='replace')
+        first = json.loads(first_line)
+        last = json.loads(last_line)
+        return (first['time'], last['time'])
+    except:
+        sys.stderr.write("Error parsing file: %s\n" % filename)
+        raise
 
 def parseLog(func, filename):
     with open(filename, 'r') as f:
