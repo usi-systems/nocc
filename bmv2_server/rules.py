@@ -35,8 +35,9 @@ if __name__ == '__main__':
     t_entries = []
     if args.mode != 'forward': # i.e. both early/opti abort
         read_cache_enabled = 1 if args.mode == 'read_cache' else 0
+	opti_enabled = 1 if args.mode == 'optimistic_abort' else 0
         for i in xrange(max_op_cnt):
-            t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i+1))
+            t_entries.append("table_add t_store_update do_store_update%d %d => %d"%(i,i+1,opti_enabled))
             t_entries.append("table_add t_req_pass1 do_check_op%d %d => %d"%(i,i+1,read_cache_enabled))
             t_entries.append("table_add t_req_fix do_req_fix%d %d =>"%(i,i+1))
 
