@@ -77,6 +77,7 @@ header_type req_meta_t {
         // tmp variables for doing swaps:
         bit<32> tmp_ipv4_dstAddr;
         bit<16> tmp_udp_dstPort;
+	bit<48> tmp_mac_addr;
     }
 }
 
