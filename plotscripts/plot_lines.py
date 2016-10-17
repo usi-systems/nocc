@@ -158,6 +158,7 @@ def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='lin
         all_x += x
         all_y += y
         handles += ax.errorbar(x, y, yerr=yerr, label=label, linewidth=linewidth, markersize=markersize,
+                elinewidth=1,
                 color=label_style_hist[label]['color'],
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
 
