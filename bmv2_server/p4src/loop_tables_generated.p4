@@ -509,7 +509,7 @@ table t_opti_update {
     size: 11;
 }
 
-action do_store_update0() {
+action do_store_update0(in bit<1> opti_enabled) {
     
     value_register[gotthard_op[0].key] =
         (gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
@@ -519,12 +519,16 @@ action do_store_update0() {
         (gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[0].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[0].key];
-    is_opti_cached_register[gotthard_op[0].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[0].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[0].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[0].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[0].key] : 0;
 }
 
 
-action do_store_update1() {
-    do_store_update0();
+action do_store_update1(in bit<1> opti_enabled) {
+    do_store_update0(opti_enabled);
     value_register[gotthard_op[1].key] =
         (gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -533,12 +537,16 @@ action do_store_update1() {
         (gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[1].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[1].key];
-    is_opti_cached_register[gotthard_op[1].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[1].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[1].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[1].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[1].key] : 0;
 }
 
 
-action do_store_update2() {
-    do_store_update1();
+action do_store_update2(in bit<1> opti_enabled) {
+    do_store_update1(opti_enabled);
     value_register[gotthard_op[2].key] =
         (gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -547,12 +555,16 @@ action do_store_update2() {
         (gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[2].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[2].key];
-    is_opti_cached_register[gotthard_op[2].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[2].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[2].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[2].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[2].key] : 0;
 }
 
 
-action do_store_update3() {
-    do_store_update2();
+action do_store_update3(in bit<1> opti_enabled) {
+    do_store_update2(opti_enabled);
     value_register[gotthard_op[3].key] =
         (gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -561,12 +573,16 @@ action do_store_update3() {
         (gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[3].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[3].key];
-    is_opti_cached_register[gotthard_op[3].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[3].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[3].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[3].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[3].key] : 0;
 }
 
 
-action do_store_update4() {
-    do_store_update3();
+action do_store_update4(in bit<1> opti_enabled) {
+    do_store_update3(opti_enabled);
     value_register[gotthard_op[4].key] =
         (gotthard_op[4].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[4].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -575,12 +591,16 @@ action do_store_update4() {
         (gotthard_op[4].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[4].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[4].key];
-    is_opti_cached_register[gotthard_op[4].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[4].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[4].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[4].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[4].key] : 0;
 }
 
 
-action do_store_update5() {
-    do_store_update4();
+action do_store_update5(in bit<1> opti_enabled) {
+    do_store_update4(opti_enabled);
     value_register[gotthard_op[5].key] =
         (gotthard_op[5].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[5].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -589,12 +609,16 @@ action do_store_update5() {
         (gotthard_op[5].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[5].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[5].key];
-    is_opti_cached_register[gotthard_op[5].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[5].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[5].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[5].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[5].key] : 0;
 }
 
 
-action do_store_update6() {
-    do_store_update5();
+action do_store_update6(in bit<1> opti_enabled) {
+    do_store_update5(opti_enabled);
     value_register[gotthard_op[6].key] =
         (gotthard_op[6].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[6].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -603,12 +627,16 @@ action do_store_update6() {
         (gotthard_op[6].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[6].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[6].key];
-    is_opti_cached_register[gotthard_op[6].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[6].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[6].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[6].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[6].key] : 0;
 }
 
 
-action do_store_update7() {
-    do_store_update6();
+action do_store_update7(in bit<1> opti_enabled) {
+    do_store_update6(opti_enabled);
     value_register[gotthard_op[7].key] =
         (gotthard_op[7].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[7].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -617,12 +645,16 @@ action do_store_update7() {
         (gotthard_op[7].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[7].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[7].key];
-    is_opti_cached_register[gotthard_op[7].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[7].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[7].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[7].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[7].key] : 0;
 }
 
 
-action do_store_update8() {
-    do_store_update7();
+action do_store_update8(in bit<1> opti_enabled) {
+    do_store_update7(opti_enabled);
     value_register[gotthard_op[8].key] =
         (gotthard_op[8].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[8].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -631,12 +663,16 @@ action do_store_update8() {
         (gotthard_op[8].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[8].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[8].key];
-    is_opti_cached_register[gotthard_op[8].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[8].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[8].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[8].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[8].key] : 0;
 }
 
 
-action do_store_update9() {
-    do_store_update8();
+action do_store_update9(in bit<1> opti_enabled) {
+    do_store_update8(opti_enabled);
     value_register[gotthard_op[9].key] =
         (gotthard_op[9].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[9].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
@@ -645,7 +681,11 @@ action do_store_update9() {
         (gotthard_op[9].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
          gotthard_op[9].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
             (bit<1>)1 : is_cached_register[gotthard_op[9].key];
-    is_opti_cached_register[gotthard_op[9].key] = (bit<1>)0;
+    is_opti_cached_register[gotthard_op[9].key] = gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT ?
+        (bit<1>) 0 : is_opti_cached_register[gotthard_op[9].key];
+    // Always set this to 0 if not in optimistic mode:
+    is_opti_cached_register[gotthard_op[9].key] = opti_enabled == 1 ?
+        (bit<1>) is_opti_cached_register[gotthard_op[9].key] : 0;
 }
 
 table t_store_update {

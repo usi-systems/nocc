@@ -12,7 +12,7 @@ P4C_BM_SCRIPT=$P4C_BM_PATH/p4c_bm/__main__.py
 
 PROG="gotthard_router"
 
-python p4src/loop_tables_template.py -m 10 > p4src/loop_tables_generated.p4 
+python p4src/loop_tables.template.py -m 10 > p4src/loop_tables_generated.p4 
 
 set -m
 $P4C_BM_SCRIPT p4src/$PROG.p4 --p4-v1.1 --json $PROG.json

@@ -4,6 +4,7 @@ parser start {
 
 #define ETHERTYPE_IPV4 0x0800
 #define GOTTHARD_PORT 9998
+#define GOTTHARD_MAX_OP 10
 
 header ethernet_t ethernet;
 
