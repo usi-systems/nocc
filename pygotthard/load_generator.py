@@ -101,7 +101,7 @@ class TxnEngine:
         if self.duration is not None:
             return time.time() > self.end_time
         else:
-            return self.count == self.max_count
+            return self.count > self.max_count
 
 
 class EngineClient(Thread, GotthardClient):
