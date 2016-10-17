@@ -45,7 +45,6 @@ action do_direction_swap (in bit<8> udp_payload_size) { // return the packet to 
     udp.dstPort = udp.srcPort;
     udp.srcPort = req_meta.tmp_udp_dstPort;
     udp.length_ = UDP_HDR_LEN + udp_payload_size;
-    udp.checksum = (bit<16>)0; // TODO: update the UDP checksum
 
     gotthard_hdr.from_switch = (bit<1>)1;
     gotthard_hdr.msg_type = GOTTHARD_TYPE_RES;
