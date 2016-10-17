@@ -77,7 +77,10 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     label_names = []
     for lbl in local_label_order:
         vals = [list(r)[1:] for r in data if r[0] == lbl]
-        rects = ax.bar(ind + width*i, vals[0], width,
+        avgs = np.mean(vals, axis=0)
+        errs = np.std(vals, axis=0)
+        rects = ax.bar(ind + width*i, avgs, width, yerr=errs,
+                error_kw=dict(ecolor='black', lw=2, capsize=5, capthick=2),
                 color=label_style_hist[lbl]['color'] if lbl in label_style_hist else colors.next())
 
         label_name = lbl
