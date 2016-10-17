@@ -15,6 +15,6 @@ log transaction requests. If Gotthard suspects that a transaction is likely to
 be aborted at the store, it optimistically aborts the transaction by re-writing
 the packet header, and routing the packets back to the client. As a result,
 Gotthard can significantly reduce the overall latency for processing a
-request. Moreover, since requests are processed ``on the wire'', Gotthard
+request. Moreover, since requests are processed "on the wire", Gotthard
 reduces load on the storage server, increasing transaction throughput.
 
