@@ -40,7 +40,6 @@ field_list_calculation ipv4_checksum {
 }
 
 calculated_field ipv4.hdrChecksum  {
-    verify ipv4_checksum;
     update ipv4_checksum;
 }
 
@@ -56,6 +55,31 @@ parser parse_ipv4 {
 
 
 header udp_t udp;
+
+field_list udp_checksum_list {
+    ipv4.srcAddr;
+    ipv4.dstAddr;
+    8w0;
+    ipv4.protocol;
+    udp.length_;
+    udp.srcPort;
+    udp.dstPort;
+    udp.length_;
+    payload;
+}
+
+field_list_calculation udp_checksum {
+    input {
+        udp_checksum_list;
+    }
+    algorithm : csum16;
+    output_width : 16;
+}
+
+calculated_field udp.checksum {
+    update udp_checksum;
+}
+
 
 parser parse_udp {
     extract(udp);
