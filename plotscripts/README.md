@@ -10,3 +10,13 @@
 
 
     ./plot_lines.py -f pdf -c plot.config label_x_y_err.tsv
+
+
+### Bar Chart
+First, generate the data:
+
+    cat results.tsv | q -t -H -O "SELECT mode, tpcc_total_rate, tpcc_payment_rate, tpcc_delivery_rate, tpcc_new_order_rate, tpcc_stock_level_rate, tpcc_order_status_rate FROM - WHERE delta_ratio=0.2 AND num_clients=8" > barchart.tsv
+
+Then plot it:
+
+    ./plot_lines.py --no-error --bar -c plot.config barchart.tsv
