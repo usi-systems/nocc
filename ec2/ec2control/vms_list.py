@@ -6,7 +6,7 @@ from common import *
 
 def get_args():
     parser = argparse.ArgumentParser(description='List ec2 vms')
-    parser.add_argument('-d', '--dns-only', help='', action='store_true', default=False)
+    parser.add_argument('-v', '--variables', help='Output variables for ip and dns', action='store_true', default=False)
     args = parser.parse_args()
     return args
 
@@ -21,10 +21,15 @@ if __name__ == '__main__':
         # for inst in conn.get_all_instance_status():
         #     print inst.instance_status
         for inst in conn.get_only_instances():
-            if args.dns_only:
+            if args.variables:
                 dns = inst.public_dns_name
                 if dns:
-                    print '%s' % (inst.public_dns_name)
+                    print '%s="%s"\n%s="%s"' % (
+                        inst.tags['Name'].upper() + '_DNS',
+                        inst.public_dns_name,
+                        inst.tags['Name'].upper() + '_IP',
+                        inst.ip_address,
+                    )
             else:
                 print '%s: %s at %s is %s(%d)' % ((inst.tags['Name'] if 'Name' in inst.tags else 'unnamed'),
                                                   inst.id,
