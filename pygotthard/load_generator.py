@@ -159,6 +159,12 @@ if __name__ == '__main__':
     if missing_p > 0:
         pdf += [(1.0-sum(pdf))/missing_p,]*missing_p
 
+    if sum(pdf) != 1.0:
+        missing = 1 - sum(pdf)
+        print "Warning: sum(pdf)=%f! Adding %f to pdf[0]" % (sum(pdf), missing)
+        assert sum(pdf) + missing == 1
+        pdf[0] += missing
+
     for txn, p in zip(args.transactions, pdf):
         print "P=%s: %s" % (str(p), txn)
 
