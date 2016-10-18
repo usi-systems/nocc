@@ -41,7 +41,7 @@ markers = itertools.cycle(('o', '^', 'D', 's', '+', 'x', '*' ))
 linestyles = itertools.cycle(("-.","--","-",":"))
 colors = itertools.cycle(('r', 'g', 'b', 'c', 'm', 'y', 'k'))
 
-def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
+def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_error=True,):
     field_names = data.dtype.names[1:]
     N = len(field_names)
     ind = np.arange(N)  # the x locations for the groups
@@ -71,7 +71,8 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     plot_handles = []
     fig, ax = plt.subplots()
     ax.grid(False)
-    #ax.yaxis.grid(linestyle='--', linewidth=.1, color='gray')
+    ax.set_axisbelow(True)
+    ax.yaxis.grid()
 
     i = 0
     label_names = []
@@ -79,7 +80,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
         vals = [list(r)[1:] for r in data if r[0] == lbl]
         avgs = np.mean(vals, axis=0)
         errs = np.std(vals, axis=0)
-        rects = ax.bar(ind + width*i, avgs, width, yerr=errs,
+        rects = ax.bar(ind + width*i, avgs, width, yerr=errs if show_error else None,
                 error_kw=dict(ecolor='black', lw=2, capsize=5, capthick=2),
                 color=label_style_hist[lbl]['color'] if lbl in label_style_hist else colors.next())
 
@@ -108,7 +109,8 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     ax.legend([r[0] for r in plot_handles], label_names,
             loc='upper center',
             bbox_to_anchor=(0.5, 1.14),
-            fancybox=True, framealpha=0.0, ncol=2)
+            handletextpad=0.2,
+            fancybox=True, framealpha=0.0, ncol=3)
 
     def autolabel(rects):
         # attach some text labels
@@ -125,7 +127,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None):
     return fig
 
 def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='linear',
-        title=None, label_order=None, conf=None, linewidth=2, markersize=2):
+        title=None, label_order=None, show_error=True, conf=None, linewidth=2, markersize=2):
     """Plots a 2D array with the format: [[label, x, y, y-dev]]
     """
     if conf and 'units' in conf:
@@ -174,8 +176,8 @@ def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='lin
         if conf and 'labels' in conf:
             if label in conf['labels']: label_name = conf['labels'][label]
 
-        handles += ax.errorbar(x, y, yerr=yerr, label=label_name, linewidth=linewidth, markersize=markersize,
-                elinewidth=1,
+        handles += ax.errorbar(x, y, label=label_name, linewidth=linewidth, markersize=markersize,
+                elinewidth=1, yerr=yerr if show_error else None,
                 color=label_style_hist[label]['color'],
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
 
@@ -229,6 +231,8 @@ if __name__ == '__main__':
             type=str, required=False, default=None)
     parser.add_argument('--label-order', '-L', help='Comma-separated list of the ordering of labels in the plot',
             type=str, default=None, required=False)
+    parser.add_argument('--no-error', help='Do not display error bars on the plot',
+            action='store_true', default=False)
     parser.add_argument('--bar', help='Plot a bar chart',
             action='store_true', default=False)
     args = parser.parse_args()
@@ -249,11 +253,13 @@ if __name__ == '__main__':
     if args.bar:
         fig = plot_bar(data, title=title,
             conf = load_conf(args.conf) if args.conf else None,
+            show_error=not args.no_error,
             ylabel=args.ylabel)
     else:
         fig = plot_lines(data, title=title,
             conf = load_conf(args.conf) if args.conf else None,
             linewidth=args.linewidth,
+            show_error=not args.no_error,
             xlim=args.xlim, ylim=args.ylim,
             xlabel=args.xlabel or data.dtype.names[1],
             ylabel=args.ylabel or data.dtype.names[2],
