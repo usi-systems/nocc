@@ -48,11 +48,12 @@ class RecvQueue:
         if req.cl_id not in self.clients:
             self.clients[req.cl_id] = {}
         if req.req_id not in self.clients[req.cl_id]:
-            self.clients[req.cl_id][req.req_id] = []
-        self.clients[req.cl_id][req.req_id].append(req)
+            self.clients[req.cl_id][req.req_id] = {}
+        self.clients[req.cl_id][req.req_id][req.frag_seq] = req
         if len(self.clients[req.cl_id][req.req_id]) == req.frag_cnt:
-            self.clients[req.cl_id][req.req_id].sort(key=lambda r: r.frag_seq)
-            ops = [o for req in self.clients[req.cl_id][req.req_id] for o in req.ops]
+            assert set(xrange(1, req.frag_cnt+1)) == set(self.clients[req.cl_id][req.req_id].keys())
+            frags = [self.clients[req.cl_id][req.req_id][f] for f in xrange(1, req.frag_cnt+1)]
+            ops = [o for req in frags for o in req.ops]
             del self.clients[req.cl_id][req.req_id]
             return ops
         return None
