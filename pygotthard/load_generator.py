@@ -161,11 +161,12 @@ if __name__ == '__main__':
 
     if sum(pdf) != 1.0:
         missing = 1 - sum(pdf)
+        assert sum(pdf) + missing == 1
         for n in xrange(len(pdf)):
             if pdf[n] + missing < 0: continue
             print "Warning: sum(pdf)=%f! Adding %f to pdf[%d]" % (sum(pdf), missing, n)
             pdf[n] += missing
-        assert sum(pdf) + missing == 1
+            break
 
     for txn, p in zip(args.transactions, pdf):
         print "P=%s: %s" % (str(p), txn)
