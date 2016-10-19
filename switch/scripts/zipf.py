@@ -5,7 +5,7 @@ parser = argparse.ArgumentParser(description='Zipf distribution workload generat
 
 parser.add_argument('--write-ratio', '-w', help='write ratio', type=float, action="store", required=True)
 parser.add_argument('--pop-size', '-n', help='population size', type=int, action="store", required=True)
-parser.add_argument('--exponent', '-s', help='zipf exponent', type=int, action="store", required=True)
+parser.add_argument('--exponent', '-s', help='zipf exponent', type=float, action="store", required=True)
 args = parser.parse_args()
 
 def zipf(s, N):
