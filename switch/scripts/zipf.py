@@ -3,7 +3,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Zipf distribution workload generator')
 
-parser.add_argument('--write-ratio', '-w', help='write ratio', type=int, action="store", required=True)
+parser.add_argument('--write-ratio', '-w', help='write ratio', type=float, action="store", required=True)
 parser.add_argument('--pop-size', '-n', help='population size', type=int, action="store", required=True)
 parser.add_argument('--exponent', '-s', help='zipf exponent', type=int, action="store", required=True)
 args = parser.parse_args()
@@ -17,7 +17,7 @@ def zipf(s, N):
 
 def zipf_pdf(pwrite, s, N):
    ranks = zipf(s, N)
-   return ','.join(['%s,%s' % (p*pwrite, p*(1-pwrite)) for p in zipf(s, N)])
+   return ','.join(['%f,%f' % (p*pwrite, p*(1-pwrite)) for p in zipf(s, N)])
 
 probabilities = zipf_pdf(args.write_ratio, args.exponent, args.pop_size)
 
