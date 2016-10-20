@@ -13,39 +13,23 @@ SWITCH1_PORT=9995
 SWITCH2_PORT=9996
 SWITCH0_PORT=9997
 
-# COMBINATIONS=[
-#     {
-#         'rw': [0.05, 0.1, 0.2],
-#         'ctotal': [4],
-#         'clocal': [4, 3, 2],
-#         'mode': ['forward', 'read_cache', 'optimistic_abort'],
-#     },
-#     {
-#         'rw': [0.05, 0.1, 0.2],
-#         'ctotal': [8],
-#         'clocal': [8, 6, 4],
-#         'mode': ['forward', 'read_cache', 'optimistic_abort'],
-#     },
-#     {
-#         'rw': [0.05, 0.1, 0.2],
-#         'ctotal': [16],
-#         'clocal': [16, 12, 8],
-#         'mode': ['forward', 'read_cache', 'optimistic_abort'],
-#     },
-# ]
-
-
 COMBINATIONS=[
     {
         'rw': [0.05, 0.1, 0.2],
+        'ctotal': [4],
+        'clocal': [4, 3, 2],
+        'mode': ['forward', 'read_cache', 'optimistic_abort'],
+    },
+    {
+        'rw': [0.05, 0.1, 0.2],
         'ctotal': [8],
-        'clocal': [7, 5],
+        'clocal': [8, 7, 6, 5, 4],
         'mode': ['forward', 'read_cache', 'optimistic_abort'],
     },
     {
         'rw': [0.05, 0.1, 0.2],
         'ctotal': [16],
-        'clocal': [15,14,10],
+        'clocal': [16, 15, 14, 12, 10, 8],
         'mode': ['forward', 'read_cache', 'optimistic_abort'],
     },
 ]
