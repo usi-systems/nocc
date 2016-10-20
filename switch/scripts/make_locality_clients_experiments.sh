@@ -12,11 +12,12 @@ mkdir -p $DONE_DIR
 mkdir -p $TORUN_DIR
 
 DR=0.2
-for locality in 0.5 0.75 1.0
+for locality in 0.625 0.875
+#for locality in 0.5 0.75 1.0
 do
     for TD in 50
     do
-        for N in 8
+        for N in 16
         do
             for write_p in 0.2
             do

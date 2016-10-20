@@ -187,6 +187,9 @@ def getExperimentStats(experiment_dir):
     if len(client_log_filenames) < 1: raise Exception("No client logs found in: %s"%log_dir)
     client_names = [path.basename(f).split('.log')[0] for f in client_log_filenames]
 
+    # Remove empty log files:
+    client_log_filenames = [f for f in client_log_filenames if os.path.getsize(f) > 0]
+
     start_times, end_times = zip(*map(getLogTimes, client_log_filenames))
     start_cutoff, end_cutoff = max(start_times), min(end_times)
     start_cutoff += 0.5
