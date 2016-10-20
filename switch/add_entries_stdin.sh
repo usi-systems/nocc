@@ -26,4 +26,10 @@ if [ $# -lt 1 ]; then
 fi
 JSON_FILE=$1
 
-$CLI_PATH $JSON_FILE
+if [ $# -lt 2 ]; then
+    THRIFT_PORT=9090
+else
+    THRIFT_PORT=$2
+fi
+
+$CLI_PATH $JSON_FILE $THRIFT_PORT
