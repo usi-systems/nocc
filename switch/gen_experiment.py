@@ -23,6 +23,8 @@ parser.add_argument('--server-delta', help='Delay (ms) between switch and server
 parser.add_argument('--client-delta', help='Delay (ms) between switch and client',
                     type=int, required=False, default=0)
 parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
+parser.add_argument("--switches", help='The switch each client should use',
+        type=lambda s: [x.strip() for x in s.split(',')], required=False, default=None)
 parser.add_argument("--param", "-p", help='Set parameters. E.g.: -p duration=25 -p count=23', action='append',
         type=lambda kv: kv.split("="), dest='parameters')
 args = parser.parse_args()
@@ -53,8 +55,11 @@ for k,v in conf['parameters'].items():
     descriptor.append(str(v)+str(k))
 
 num_clients = max(args.num_clients or 1, len(args.client_cmd))
+switches = args.switches if args.switches else ['s2']*num_clients
+assert len(switches) == num_clients
 for n in xrange(num_clients):
     conf['clients'].append(dict(cmd=args.client_cmd[n % len(args.client_cmd)],
+              switch=switches[n],
               delay=client_delta, stdout_log=args.stdout_log))
 
 if args.num_clients is not None: descriptor.append('%dclients' % args.num_clients)
