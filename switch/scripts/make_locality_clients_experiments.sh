@@ -17,9 +17,9 @@ for locality in 0.625 0.875
 do
     for TD in 50
     do
-        for N in 16
+        for N in 8
         do
-            for write_p in 0.2
+            for write_p in 0.5
             do
                 for switch_mode in 'read_cache' 'forward' 'optimistic_abort'
                 do
@@ -36,7 +36,7 @@ do
                         --server-cmd  "../pygotthard/store.py -l %l -p %p" \
                         --out-parent $TORUN_DIR --mode $switch_mode \
                         -p think=0.001 -p locality=$locality \
-                        -p num_clients=$N -p runtime=180 -p write_p=$write_p \
+                        -p num_clients=$N -p runtime=60 -p write_p=$write_p \
                         --total-delta $TD --delta-ratio $DR
                 done
             done

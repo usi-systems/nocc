@@ -14,12 +14,12 @@ mkdir -p $TORUN_DIR
 TD=50
 num_keys=5
 DR=0.2
-for locality in 0.5 1.0 0.75
-#for locality in 0.5 1.0
+#for locality in 0.5 1.0 0.75
+for locality in 0.625 0.875 0.5 1.0 0.75
 do
-    #for zipf_s in 2
-    for zipf_s in 0 1 2 3 4 5 6 
-    #for zipf_s in 7 8 9
+    #for zipf_s in 1 2 3 4 5 6
+    #for zipf_s in 0.5 1.5 2.5 3.5 4.5 5.5
+    for zipf_s in 3
     do
         for N in 16
         do
@@ -48,7 +48,7 @@ do
                         --server-cmd  "../pygotthard/store.py -l %l -p %p" \
                         --out-parent $TORUN_DIR --mode $switch_mode \
                         -p think=0.001 -p locality=$locality -p zipf_s=$zipf_s\
-                        -p num_clients=$N -p runtime=60 -p write_p=$write_p \
+                        -p num_clients=$N -p runtime=180 -p write_p=$write_p \
                         --total-delta $TD --delta-ratio $DR
                 done
             done
