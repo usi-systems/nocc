@@ -6,6 +6,8 @@ parser = argparse.ArgumentParser(description='Zipf distribution workload generat
 parser.add_argument('--write-ratio', '-w', help='write ratio', type=float, action="store", required=True)
 parser.add_argument('--pop-size', '-n', help='population size', type=int, action="store", required=True)
 parser.add_argument('--exponent', '-s', help='zipf exponent', type=float, action="store", required=True)
+parser.add_argument('--keys', '-k', help='keys to use',
+        type=lambda s: [k.strip() for k in s.split(',')], action="store", default=None, required=False)
 args = parser.parse_args()
 
 def zipf(s, N):
@@ -21,7 +23,9 @@ def zipf_pdf(pwrite, s, N):
 
 probabilities = zipf_pdf(args.write_ratio, args.exponent, args.pop_size)
 
-keys = ['a','b','c','d','e','f','g','h','i','j'][:args.pop_size]
-transactions = '|'.join(['A(%(k)s,%(k)s)W(%(k)s,%(k)s+1)|R(%(k)s)' % {'k': k} for k in keys])
+keyspace = args.keys or ['a','b','c','d','e','f','g','h','i','j']
+keys = keyspace[:args.pop_size]
+#transactions = '|'.join(['A(%(k)s,%(k)s)W(%(k)s,%(k)s+1)|R(%(k)s)' % {'k': k} for k in keys])
+transactions = '|'.join(['A(%(k)s,%(k)s)W(%(k)s,RND)|R(%(k)s)' % {'k': k} for k in keys])
 
 print "%s\t%s" % (probabilities, transactions)
