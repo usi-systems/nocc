@@ -36,8 +36,9 @@ class TxnEngine:
             self.transactions.append(txn)
 
         for n, symbol in enumerate(sorted(self.key_symbols)):
-            self.key_to_symbol[n+1] = symbol
-            self.symbol_to_key[symbol] = n+1
+            assert len(symbol) == 1, "keys should be a single char"
+            self.key_to_symbol[ord(symbol[0])] = symbol
+            self.symbol_to_key[symbol] = ord(symbol[0])
             self.symbol_state[symbol] = 0
 
         self._chooseTxn()
