@@ -5,6 +5,7 @@ import csv, sqlite3
 import io
 import logging
 import sys
+import argparse
 
 def _is_float(s):
     try:
@@ -95,15 +96,16 @@ def tsvFileToDb(fin, storage=None, table_name='t'):
 
     return con
 
-if __name__ == 'main':
-    if len(sys.argv) < 3:
-        print "Usage %s FILE.TSV|- OUT.DB"
-        sys.exit(1)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Convert TSV file to SQLite DB')
+    parser.add_argument('filename', help='input TSV file',
+            type=str, action="store")
+    parser.add_argument('output', help='Path to which the database should be stored',
+            type=str, action="store")
+    args = parser.parse_args()
 
-    in_filename = sys.argv[1]
-    out_filename = sys.argv[2]
-    if in_filename == "-":
-        tsvToDb(file=sys.stdin, storage=out_filename)
+    if args.filename == "-":
+        tsvToDb(file=sys.stdin, storage=args.output)
     else:
-        tsvToDb(filename=sys.stdin, storage=out_filename)
+        tsvToDb(filename=args.filename, storage=args.output)
 

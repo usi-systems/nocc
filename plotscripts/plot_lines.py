@@ -40,6 +40,8 @@ label_order_hist = [] # keep history of the order of labels
 markers = itertools.cycle(('o', '^', 'D', 's', '+', 'x', '*' ))
 linestyles = itertools.cycle(("-.","--","-",":"))
 colors = itertools.cycle(('r', 'g', 'b', 'c', 'm', 'y', 'k'))
+hatches = itertools.cycle(('x', '/', 'o', '\\', '*', 'o', 'O', '.'))
+
 
 def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_error=True,):
     field_names = data.dtype.names[1:]
@@ -82,7 +84,10 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_er
         errs = np.std(vals, axis=0)
         rects = ax.bar(ind + width*i, avgs, width, yerr=errs if show_error else None,
                 error_kw=dict(ecolor='black', lw=2, capsize=5, capthick=2),
-                color=label_style_hist[lbl]['color'] if lbl in label_style_hist else colors.next())
+                color='none',
+                edgecolor=label_style_hist[lbl]['color'] if lbl in label_style_hist else colors.next(),
+                hatch=hatches.next()*2)
+        ax.bar(ind + width*i, avgs, width, color='none', edgecolor='k')
 
         label_name = lbl
         if conf and 'labels' in conf:

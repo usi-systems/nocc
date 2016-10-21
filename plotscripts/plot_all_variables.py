@@ -14,7 +14,11 @@ from tsv_to_db import tsvToDb
 
 def _get_ind_var_combinations(cur, ind_vars):
     sql = "SELECT %s FROM t GROUP BY %s" % (','.join(ind_vars), ','.join(ind_vars))
-    cur.execute(sql)
+    try:
+        cur.execute(sql)
+    except:
+        print sql
+        raise
     combinations = []
     while True:
         rows = cur.fetchall()
@@ -36,7 +40,11 @@ def _get_data(cur, label_field, ind_var, dep_var, fixed_ind_vars, err_field=None
     sql ="SELECT %s,%s,%s%s FROM t WHERE %s" % (label_field, ind_var, dep_var,
             ',' + err_field if err_field else '',
         ' AND '.join(["%s=%s"%(k,v) for k,v in fixed_ind_vars.iteritems()]))
-    cur.execute(sql)
+    try:
+        cur.execute(sql)
+    except:
+        print sql
+        raise
     points_for_label = {}
     err_for_label = {}
     data = []
