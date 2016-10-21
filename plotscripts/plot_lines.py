@@ -5,6 +5,7 @@ havedisplay = "DISPLAY" in os.environ
 if not havedisplay:
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
 import numpy as np
 from ConfigParser import ConfigParser
 import sys
@@ -104,7 +105,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_er
     if conf and 'labels' in conf:
         field_titles = [conf['labels'][l] if l in conf['labels'] else l for l in field_names]
     else: field_titles = field_names
-    ax.set_xticklabels(field_titles, rotation=45)
+    ax.set_xticklabels(field_titles, rotation=30)
 
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
@@ -113,7 +114,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_er
 
     ax.legend([r[0] for r in plot_handles], label_names,
             loc='upper center',
-            bbox_to_anchor=(0.5, 1.14),
+            bbox_to_anchor=(0.5, 1.12),
             handletextpad=0.2,
             fancybox=True, framealpha=0.0, ncol=3)
 
@@ -131,7 +132,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_er
     fig.tight_layout()
     return fig
 
-def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='linear',
+def plot_lines(data, xlabel=None, xlim=None, xtick=None, ylabel=None, ylim=None, yscale='linear',
         title=None, label_order=None, show_error=True, conf=None, linewidth=2, markersize=2):
     """Plots a 2D array with the format: [[label, x, y, y-dev]]
     """
@@ -195,6 +196,9 @@ def plot_lines(data, xlabel=None, xlim=None, ylabel=None, ylim=None, yscale='lin
     else: ax.set_xlim([x1, x2])
     if ylim: ax.set_ylim(ylim)
     else: ax.set_ylim([0, y2 + (y2-y1)*0.1])
+    if xtick:
+        loc = plticker.MultipleLocator(base=xtick) # this locator puts ticks at regular intervals
+        ax.xaxis.set_major_locator(loc)
 
     ax.grid()
     #if _should_use_log(all_x):
@@ -222,6 +226,8 @@ if __name__ == '__main__':
             type=str, action="store", default=None, required=False)
     parser.add_argument('--xlim', help='x-axis limits',
             type=get_lim, default=None, required=False)
+    parser.add_argument('--xtick', help='x-axis tick frequency',
+            type=float, default=None, required=False)
     parser.add_argument('--ylim', help='y-axis limits',
             type=get_lim, default=None, required=False)
     parser.add_argument('--ylabel', '-y', help='y-axis label',
@@ -265,7 +271,7 @@ if __name__ == '__main__':
             conf = load_conf(args.conf) if args.conf else None,
             linewidth=args.linewidth,
             show_error=not args.no_error,
-            xlim=args.xlim, ylim=args.ylim,
+            xlim=args.xlim, ylim=args.ylim, xtick=args.xtick,
             xlabel=args.xlabel or data.dtype.names[1],
             ylabel=args.ylabel or data.dtype.names[2],
             yscale=args.yscale,
