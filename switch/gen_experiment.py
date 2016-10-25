@@ -23,8 +23,8 @@ parser.add_argument('--server-delta', help='Delay (ms) between switch and server
 parser.add_argument('--client-delta', help='Delay (ms) between switch and client',
                     type=int, required=False, default=0)
 parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
-parser.add_argument("--switches", help='The switch each client should use',
-        type=lambda s: [x.strip() for x in s.split(',')], required=False, default=None)
+parser.add_argument("--switch", help='The switch each client should use', action='append',
+        type=lambda s: [x.strip() for x in s.split(',')], required=False, dest='switches', default=None)
 parser.add_argument("--param", "-p", help='Set parameters. E.g.: -p duration=25 -p count=23', action='append',
         type=lambda kv: kv.split("="), dest='parameters')
 args = parser.parse_args()
