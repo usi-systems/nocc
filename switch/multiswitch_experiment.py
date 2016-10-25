@@ -73,7 +73,7 @@ args = parser.parse_args()
 
 class MultiSwitchTopo(Topo):
     "Single switch connected to n (< 256) hosts."
-    def __init__(self, sw_path, json_path, thrift_port, pcap_dump, switches, store, **opts):
+    def __init__(self, sw_path, json_path, thrift_port, pcap_dump, switches, clients, store, **opts):
         # Initialize topology and default options
         Topo.__init__(self, **opts)
 
@@ -84,21 +84,26 @@ class MultiSwitchTopo(Topo):
                                 thrift_port = thrift_port,
                                 pcap_dump = pcap_dump)
 
-        store_host = self.addHost(store['name'], ip=store['ip']+'/24', mac=store['mac'])
-        self.addLink(switch_a, store_host, delay='1ms')
+        store_host = self.addHost(store['name'])#, ip=store['addr']+'/24', mac=store['mac'])
+        self.addLink(store_host, switch_a, delay='1ms', addr1=store['mac'], intfName1='eth0')
 
+        sw_objects = {}
         sorted_switches = sorted(switches.items(), key=lambda t: t[1]['sw_a_port'])
         for sw_name, switch_conf in sorted_switches:
-            b_switch = self.addSwitch(sw_name,
+            sw_objects[sw_name] = self.addSwitch(sw_name,
                                 sw_path = sw_path,
                                 json_path = json_path,
                                 thrift_port = thrift_port+switch_conf['port_offset'],
                                 pcap_dump = pcap_dump)
-            self.addLink(b_switch, switch_a, delay="%dms"%store['delay'])
+            self.addLink(sw_objects[sw_name], switch_a, delay="%dms"%store['delay'])
 
-            for h in switch_conf['clients']:
-                host = self.addHost(h['name'], ip=h['ip']+'/24', mac=h['mac'])
-                self.addLink(host, b_switch, delay="%dms"%h['delay'])
+        for cl in clients:
+            host = self.addHost(cl['name'])#, ip=cl['links'][0]['cl_addr'], mac=cl['links'][0]['cl_mac'])
+            for l in cl['links']:
+                b_switch = sw_objects[l['sw_name']]
+                self.addLink(host, b_switch, delay="%dms"%l['delay'],
+                        addr1=l['cl_mac'], addr2=l['sw_mac'],
+                        intfName1='eth%d'%l['iface'])
 
 
 def fmtStr(tmpl, params):
@@ -136,52 +141,70 @@ def main():
     server_log = os.path.join(conf['log_dir'], 'server.log')
     if os.path.exists(server_log): os.remove(server_log)
     store = dict(
-            name = srv['name'] if 'name' in srv else 'store',
-            ip = srv['ip'] if 'ip' in srv else "10.0.0.10",
-            sw_addr = srv['sw_addr'] if 'sw_addr' in srv else "10.0.0.1",
-            mac = srv['mac'] if 'mac' in srv else '00:04:00:00:00:00',
-            sw_mac = srv['sw_mac'] if 'sw_mac' in srv else "00:aa:bb:00:00:00",
+            name = 'store',
+            addr = "10.0.0.10",
+            sw_addr = "10.0.0.1",
+            mac = '00:dd:aa:00:00:01',
+            sw_mac = "00:aa:dd:00:00:01",
             delay = srv['delay'] if 'delay' in srv else args.server_delay,
             cmd = fmtStr(srv['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%l', server_log), params)
             )
     hosts.append(store)
 
     switches = {}
+    clients = []
     for n, cl in enumerate(conf['clients']):
         assert(type(cl) is dict and 'cmd' in cl)
-        sw_name = cl['switch'] if 'switch' in cl else 's2'
-        if sw_name not in switches:
-            switches[sw_name] = dict(subnet=len(switches)+1,
-                                         t_entries=[],
-                                         sw_a_port=len(switches)+2,
-                                         port_offset=len(switches)+1,
-                                         clients=[])
-        switch = switches[sw_name]
-
         h = n + 1
         host = dict(
-                sw_name = sw_name,
-                sw_port = len(switch['clients'])+2,
                 name = cl['name'] if 'name' in cl else 'h%d' % (h + 1),
-                ip = cl['ip'] if 'ip' in cl else "10.%d.%d.10" % (switch['subnet'], h),
-                sw_addr = cl['sw_addr'] if 'sw_addr' in cl else "10.%d.%d.1" % (switch['subnet'], h),
-                mac = cl['mac'] if 'mac' in cl else '00:04:00:00:00:%02x' % h,
-                sw_mac = cl['sw_mac'] if 'sw_mac' in cl else "00:aa:bb:00:00:%02x" % h,
-                delay = cl['delay'] if 'delay' in cl else args.client_delay)
+                links = []
+                )
         if 'stdout_log' in cl and cl['stdout_log']:
             host['stdout_log'] = os.path.join(conf['log_dir'], '%s.stdout.log' % host['name'])
         host['log'] = os.path.join(conf['log_dir'], '%s.log' % host['name'])
         if os.path.exists(host['log']): os.remove(host['log'])
         host['cmd'] = cl['cmd'].replace('%h', server_addr).replace('%p', server_port).replace('%e', conf['dir']).replace('%l', host['log'])
         host['cmd'] = fmtStr(host['cmd'], params)
+
+        if 'switch' in cl:
+            cl_switch_names = cl['switch'] if type(cl['switch']) is list else [cl['switch']]
+        else: cl_switch_names = ['s2']
+
+        for i, sw_name in enumerate(cl_switch_names):
+            if sw_name not in switches:
+                switches[sw_name] = dict(subnet=len(switches)+1,
+                                         mac="00:bb:aa:00:00:%02x" % (len(switches)+1),
+                                         t_entries=[],
+                                         sw_a_port=len(switches)+2,
+                                         port_offset=len(switches)+1,
+                                         links=[],
+                                         clients=[])
+            switch = switches[sw_name]
+            switch_link = dict(
+                iface=i,
+                sw_name = sw_name,
+                cl_addr = cl['addr'] if 'addr' in cl else "10.%d.%d.10" % (switch['subnet'], h),
+                cl_mac = cl['mac'] if 'mac' in cl else '00:cc:bb:00:%02x:%02x' % (switch['subnet'], h),
+                sw_port = len(switch['clients'])+2,
+                sw_addr = "10.%d.%d.1" % (switch['subnet'], h),
+                sw_mac = "00:bb:cc:00:%02x:%02x" % (switch['subnet'], h),
+                store_addr = "10.0.0.%d" % (10 + i),
+                delay = cl['delay'] if 'delay' in cl else args.client_delay,
+                )
+            switch['links'].append(switch_link)
+            host['links'].append(switch_link)
+            switch['clients'].append(host)
+
         hosts.append(host)
-        switch['clients'].append(host)
+        clients.append(host)
 
     topo = MultiSwitchTopo(args.behavioral_exe,
                             args.json,
                             args.thrift_port,
                             args.pcap_dump,
                             switches,
+                            clients,
                             store)
     net = Mininet(topo = topo,
                   link = TCLink,
@@ -190,15 +213,27 @@ def main():
                   controller = None)
     net.start()
 
+    store_obj = net.get(store['name'])
+    store_obj.setARP(store['sw_addr'], store['sw_mac'])
 
+    store_addresses = set([l['store_addr'] for cl in clients for l in cl['links']])
+    for i, addr in enumerate(store_addresses):
+        store_obj.cmd('ip address add %s/24 dev eth0' % (addr))
 
-    for n, host in enumerate(hosts):
+    for n, host in enumerate(clients):
         h = net.get(host['name'])
         if args.lmode == "l2":
             h.setDefaultRoute("dev eth0")
         else:
-            h.setARP(host['sw_addr'], host['sw_mac'])
-            h.setDefaultRoute("dev eth0 via %s" % host['sw_addr'])
+            for link in host['links']:
+                h.setIP(link['cl_addr'], intf='eth%d'%link['iface'])
+                store_obj.cmd('ip route add %s via %s dev eth0 src %s' % (link['cl_addr'], store['sw_addr'], link['store_addr']))
+                h.cmd('ip route add %s via %s dev eth%d src %s' % (link['store_addr'], link['sw_addr'], link['iface'], link['cl_addr']))
+                h.cmd('ip route add %s via %s' % (link['store_addr'], link['sw_addr']))
+                h.cmd('ip route add %s dev eth%d src %s' % (link['sw_addr'], link['iface'], link['cl_addr']))
+                # to fix checksum bug: https://github.com/mininet/mininet/issues/653
+                h.cmd('ethtool -K eth%d tx off' % link['iface'])
+                h.setARP(link['sw_addr'], link['sw_mac'])
 
     for host in hosts:
         h = net.get(host['name'])
@@ -231,24 +266,34 @@ def main():
             all_t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i+1))
 
     switch_a_entries = [e for e in all_t_entries]
-    switch_a_entries.append("table_add ipv4_lpm set_nhop %s/32 => %s 1" % (store['ip'], store['ip']))
-    switch_a_entries.append("table_add forward set_dmac %s => %s" % (store['ip'], store['mac']))
     switch_a_entries.append("table_add send_frame rewrite_mac 1 => %s" % store['sw_mac'])
+    def insert(entries, entry):
+        if entry not in entries: entries.append(entry)
 
     n = 0
     for switch_name, switch in switches.items():
         n += 1
         switch_entries = [e for e in all_t_entries]
-        switch_entries.append("table_add ipv4_lpm set_nhop %s/32 => %s 1" % (store['ip'], store['ip']))
-        switch_entries.append("table_add forward set_dmac %s => %s" % (store['ip'], store['mac']))
-        switch_entries.append("table_add send_frame rewrite_mac 1 => 00:cc:00:00:00:%02x" % n)
-        switch_a_entries.append("table_add send_frame rewrite_mac %d => 00:dd:00:00:00:01" % switch['sw_a_port'])
-        for n, host in enumerate(switch['clients']):
-            switch_a_entries.append("table_add ipv4_lpm set_nhop %s/32 => %s %d" % (host['ip'], host['ip'], switch['sw_a_port']))
-            switch_a_entries.append("table_add forward set_dmac %s => %s" % (host['ip'], host['mac']))
-            switch_entries.append("table_add ipv4_lpm set_nhop %s/32 => %s %d" % (host['ip'], host['ip'], host['sw_port']))
-            switch_entries.append("table_add forward set_dmac %s => %s" % (host['ip'], host['mac']))
-            switch_entries.append("table_add send_frame rewrite_mac %d => %s" % (host['sw_port'], host['sw_mac']))
+        insert(switch_entries, "table_add send_frame rewrite_mac 1 => %s" % switch['mac'])
+        insert(switch_a_entries, "table_add send_frame rewrite_mac %d => aa:bb:00:00:00:01" % switch['sw_a_port'])
+        for link in switch['links']:
+            # cl -> (switchB) -> switchA -> st
+            insert(switch_entries, "table_add ipv4_lpm set_nhop %s/32 => %s 1" % (link['store_addr'], link['store_addr']))
+            insert(switch_entries, "table_add forward set_dmac %s => %s" % (link['store_addr'], store['mac']))
+
+            # cl -> switchB -> (switchA) -> st
+            insert(switch_a_entries, "table_add ipv4_lpm set_nhop %s/32 => %s 1" % (link['store_addr'], link['store_addr']))
+            insert(switch_a_entries, "table_add forward set_dmac %s => %s" % (link['store_addr'], store['mac']))
+
+            # cl <- switchB <- (switchA) <- st
+            insert(switch_a_entries, "table_add ipv4_lpm set_nhop %s/32 => %s %d" % (link['cl_addr'], link['cl_addr'], switch['sw_a_port']))
+            insert(switch_a_entries, "table_add forward set_dmac %s => %s" % (link['cl_addr'], link['cl_mac']))
+
+            # cl <- (switchB) <- switchA <- st
+            insert(switch_entries, "table_add ipv4_lpm set_nhop %s/32 => %s %d" % (link['cl_addr'], link['cl_addr'], link['sw_port']))
+            insert(switch_entries, "table_add forward set_dmac %s => %s" % (link['cl_addr'], link['cl_mac']))
+            insert(switch_entries, "table_add send_frame rewrite_mac %d => %s" % (link['sw_port'], link['sw_mac']))
+
         add_entries(switch_entries, args.thrift_port+switch['port_offset'])
 
     add_entries(switch_a_entries, args.thrift_port)
@@ -279,6 +324,9 @@ def main():
         if 'stdoutfile' in host:
             host['stdoutfile'].flush()
             host['stdoutfile'].close()
+
+    if args.cli:
+        CLI( net )
 
     client_procs = []
     for host in hosts[1:]:

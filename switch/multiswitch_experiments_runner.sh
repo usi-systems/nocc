@@ -28,5 +28,6 @@ do
     time ./run_multiswitch_experiment.sh $json_file > "$experiment_dir/logs/stdout" 2> "$experiment_dir/logs/stderr"
 
     mv $experiment_dir $DONE_DIR
+    sleep 15
 
 done
