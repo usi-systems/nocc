@@ -40,6 +40,8 @@ from pygotthard import GOTTHARD_MAX_OP
 from time import sleep
 from util import waitForTcpPort
 
+MTU = 9000
+
 parser = argparse.ArgumentParser(description='Mininet demo')
 parser.add_argument('--behavioral-exe', help='Path to behavioral executable',
                     type=str, action="store", required=True)
@@ -215,6 +217,7 @@ def main():
 
     store_obj = net.get(store['name'])
     store_obj.setARP(store['sw_addr'], store['sw_mac'])
+    store_obj.cmd('ifconfig eth0 mtu %d' % MTU)
 
     store_addresses = set([l['store_addr'] for cl in clients for l in cl['links']])
     for i, addr in enumerate(store_addresses):
@@ -227,6 +230,7 @@ def main():
         else:
             for link in host['links']:
                 h.setIP(link['cl_addr'], intf='eth%d'%link['iface'])
+                h.cmd('ifconfig eth%d mtu %d' % (link['iface'], MTU))
                 store_obj.cmd('ip route add %s via %s dev eth0 src %s' % (link['cl_addr'], store['sw_addr'], link['store_addr']))
                 h.cmd('ip route add %s via %s dev eth%d src %s' % (link['store_addr'], link['sw_addr'], link['iface'], link['cl_addr']))
                 h.cmd('ip route add %s via %s' % (link['store_addr'], link['sw_addr']))
@@ -324,6 +328,9 @@ def main():
         if 'stdoutfile' in host:
             host['stdoutfile'].flush()
             host['stdoutfile'].close()
+
+    for intf in [intf for sw in net.switches for intf in sw.intfNames()]:
+        subprocess.call(['ifconfig', intf, 'mtu', str(MTU)])
 
     if args.cli:
         CLI( net )
