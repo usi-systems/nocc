@@ -238,6 +238,8 @@ if __name__ == '__main__':
             type=str, action="store", default=None, required=False)
     parser.add_argument('--linewidth', '-w', help='line width',
             type=int, action="store", default=2, required=False)
+    parser.add_argument('--markersize', '-m', help='marker size',
+            type=int, action="store", default=4, required=False)
     parser.add_argument('--conf', '-c', help='A python config file with [style] and [labels] sections',
             type=str, required=False, default=None)
     parser.add_argument('--label-order', '-L', help='Comma-separated list of the ordering of labels in the plot',
@@ -277,6 +279,7 @@ if __name__ == '__main__':
             xlabel=args.xlabel or data.dtype.names[1],
             ylabel=args.ylabel or data.dtype.names[2],
             yscale=args.yscale,
+            markersize=args.markersize,
             label_order=_tolist(args.label_order) if args.label_order else None)
 
     fig.savefig(file_out)
