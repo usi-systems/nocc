@@ -44,7 +44,7 @@ do
                             "../pygotthard/load_generator.py -i 1100 -n $rem_cnt -t %think% -d %runtime% -T $s3_txns -p $s3_probabilities -l %l %h %p" \
                             "../pygotthard/load_generator.py -i 2000 -n $lcl_cnt -t %think% -d %runtime% -T $s3_txns -p $s3_probabilities -l %l %h %p" \
                             "../pygotthard/load_generator.py -i 2200 -n $rem_cnt -t %think% -d %runtime% -T $s2_txns -p $s2_probabilities -l %l %h %p" \
-                        --switches s2,s2,s3,s3 \
+                        --switch s2 --switch s2 --switch s3 --switch s3 \
                         --server-cmd  "../pygotthard/store.py -l %l -p %p" \
                         --out-parent $TORUN_DIR --mode $switch_mode \
                         -p think=0.001 -p locality=$locality -p zipf_s=$zipf_s\

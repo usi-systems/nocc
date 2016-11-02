@@ -25,7 +25,7 @@ do
     json_file="$experiment_dir/experiment.json"
     mkdir "$experiment_dir/logs"
     killall python 2> "$experiment_dir/logs/before"
-    time ./run_experiment.sh $json_file > "$experiment_dir/logs/stdout" 2> "$experiment_dir/logs/stderr"
+    time ./run_multiswitch_experiment.sh $json_file > "$experiment_dir/logs/stdout" 2> "$experiment_dir/logs/stderr"
 
     mv $experiment_dir $DONE_DIR
     sleep 15

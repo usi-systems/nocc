@@ -257,6 +257,7 @@ class GotthardClient:
             self.cl_id = abs(hash(self.cl_name)) % 2**32
         if self.log_filename: self.log = GotthardLogger(self.log_filename)
         elif self.log_dir: self.log = GotthardLogger(os.path.join(self.log_dir, 'cl%d.log'%self.cl_id))
+        if self.log: self.log.open()
         self.closed = False
         return self
 
@@ -266,7 +267,7 @@ class GotthardClient:
     def close(self):
         if self.closed: return
         self.sock.close()
-        if self.log_dir or self.log_filename: self.log.close()
+        if self.log: self.log.close()
         self.closed = True
 
     def _log(self, *args, **kwargs):
@@ -401,6 +402,7 @@ class GotthardLogger:
         self.closed = threading.Event()
         self.stdout = stdout
         self.last_log = 0
+        self.connected_cnt = 0
 
         def heartbeat():
             while not self.closed.wait(1):
@@ -409,6 +411,9 @@ class GotthardLogger:
         t = threading.Thread(target=heartbeat)
         t.daemon = False
         t.start()
+
+    def open(self):
+        self.connected_cnt += 1
 
     def log(self, event, req=None, res=None):
         self.last_log = time.time()
@@ -421,6 +426,8 @@ class GotthardLogger:
         self.logfile.write(line + "\n")
 
     def close(self):
+        self.connected_cnt -= 1
+        if self.connected_cnt > 0: return
         if self.closed.isSet(): return
         self.closed.set()
         self.logfile.flush()

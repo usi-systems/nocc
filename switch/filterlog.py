@@ -8,6 +8,7 @@ from pygotthard import *
 parser = argparse.ArgumentParser()
 parser.add_argument("log", type=str, help="JSON log filename", nargs='?')
 parser.add_argument('--checksum', '-c', help="print value checksum", action='store_true', default=False)
+parser.add_argument('--pretty', '-p', help="pretty print", action='store_true', default=False)
 parser.add_argument('--tsv', '-t', help="output tsv data", action='store_true', default=False)
 args = parser.parse_args()
 
@@ -40,6 +41,12 @@ def parseFile(f):
                     op_cnt=len(m['ops']))
             row = map(str, [m[k] if k in m else extra[k] for k in tsv_fields])
             print '\t'.join(row)
+        elif args.pretty:
+            m['ops'] = sorted(m['ops'], key=lambda o: (['V', 'R', 'W', 'U'].index(o['t']), o['k']))
+            pretty = '%s (%d): ' % (msg_type, m['req_id'])
+            pretty += '%17s: ' % (m['status'] if 'status' in m else '')
+            pretty += ' '.join(['%s(%d, %s)' %(o['t'], o['k'], o['v']) for o in m['ops']])
+            print pretty
         else:
             print json.dumps(e)
 

@@ -5,7 +5,7 @@ import datetime
 import re
 from ReadWriteLock import ReadWriteLock
 import threading
-from pygotthard import VALUE_SIZE
+from gotthard import VALUE_SIZE
 
 MAX_STR_SIZE=12
 
@@ -356,7 +356,7 @@ def test_records():
     r['b'] = 7
     r['s'] = 'hi'
     s = r.pack()
-    assert len(s) == 13
+    assert len(s) == 128, len(s)
     assert 'hi' in s
     assert b'\x00' in s
     assert b'\x07' in s
