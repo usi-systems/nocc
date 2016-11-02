@@ -237,12 +237,14 @@ if __name__ == '__main__':
     parser.add_argument('--title', '-t', help='title',
             type=str, action="store", default=None, required=False)
     parser.add_argument('--linewidth', '-w', help='line width',
-            type=int, action="store", default=None, required=False)
+            type=int, action="store", default=2, required=False)
     parser.add_argument('--conf', '-c', help='A python config file with [style] and [labels] sections',
             type=str, required=False, default=None)
     parser.add_argument('--label-order', '-L', help='Comma-separated list of the ordering of labels in the plot',
             type=str, default=None, required=False)
     parser.add_argument('--no-error', help='Do not display error bars on the plot',
+            action='store_true', default=False)
+    parser.add_argument('--show', help='Open the plot in a new window',
             action='store_true', default=False)
     parser.add_argument('--bar', help='Plot a bar chart',
             action='store_true', default=False)
@@ -278,3 +280,4 @@ if __name__ == '__main__':
             label_order=_tolist(args.label_order) if args.label_order else None)
 
     fig.savefig(file_out)
+    if args.show: plt.show()
