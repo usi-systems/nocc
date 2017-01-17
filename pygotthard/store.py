@@ -12,6 +12,7 @@ parser.add_argument("-l", "--log", type=str, help="log file to write to", requir
 parser.add_argument("-d", "--dump", type=str, help="dump store to this file on exit", required=False)
 parser.add_argument("-r", "--recover", type=str, help="recover store from this file", required=False)
 parser.add_argument("-v", "--verbosity", type=int, help="set verbosity level", default=0, required=False)
+parser.add_argument("-t", "--think", type=float, help="think time for requests", default=0, required=False)
 args = parser.parse_args()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -89,6 +90,7 @@ while True:
             raise
         break
     req = TxnMsg(binstr=data)
+    time.sleep(args.think)
     if log: log.log("received", req=req)
     assert req.flags.type == TYPE_REQ
 
