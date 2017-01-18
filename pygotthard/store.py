@@ -14,6 +14,7 @@ parser.add_argument("-d", "--dump", type=str, help="dump store to this file on e
 parser.add_argument("-r", "--recover", type=str, help="recover store from this file", required=False)
 parser.add_argument("-v", "--verbosity", type=int, help="set verbosity level", default=0, required=False)
 parser.add_argument("-t", "--think", type=float, help="think time for requests", default=0, required=False)
+parser.add_argument("-s", "--serial", action='store_true', help="Process requests serially", default=False, required=False)
 args = parser.parse_args()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -91,8 +92,8 @@ def sendResp(req, status, ops, addr):
 
 def handleReq(data, addr):
     req = TxnMsg(binstr=data)
-    time.sleep(args.think)
     if log: log.log("received", req=req)
+    time.sleep(args.think)
     assert req.flags.type == TYPE_REQ
 
     resp_ready = True
@@ -118,8 +119,11 @@ while True:
         if code != errno.EINTR:
             raise
         break
-    thread = Thread(target=handleReq, args=(data, addr))
-    thread.start()
+    if args.serial:
+        handleReq(data, addr)
+    else:
+        thread = Thread(target=handleReq, args=(data, addr))
+        thread.start()
 
 
 if log: log.close()
