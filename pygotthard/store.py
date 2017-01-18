@@ -4,6 +4,7 @@ import socket
 import time
 import signal
 import errno
+from threading import Thread, Lock
 from gotthard import *
 
 parser = argparse.ArgumentParser()
@@ -42,8 +43,15 @@ signal.signal(signal.SIGINT, handler)
 class RecvQueue:
     clients = {}
 
-    # TODO: prune fragmented message queues with missing frags
+    def __init__(self):
+        self.lock = Lock()
+
     def pushpop(self, req):
+        with self.lock:
+            return self._pushpop(req)
+
+    # TODO: prune fragmented message queues with missing frags
+    def _pushpop(self, req):
         if req.frag_cnt == 1:
             return req.ops
         if req.cl_id not in self.clients:
@@ -81,14 +89,7 @@ def sendResp(req, status, ops, addr):
         if wait:
             time.sleep(wait)
 
-
-while True:
-    try:
-        data, addr = sock.recvfrom(MAX_TXNMSG_SIZE)
-    except socket.error as (code, msg):
-        if code != errno.EINTR:
-            raise
-        break
+def handleReq(data, addr):
     req = TxnMsg(binstr=data)
     time.sleep(args.think)
     if log: log.log("received", req=req)
@@ -105,10 +106,20 @@ while True:
     else:
         txn_ops = recvq.pushpop(req)
         if txn_ops is None:
-            continue
+            return
         status, ops = store.applyTxn(txn_ops)
 
     sendResp(req, status, ops, addr)
+
+while True:
+    try:
+        data, addr = sock.recvfrom(MAX_TXNMSG_SIZE)
+    except socket.error as (code, msg):
+        if code != errno.EINTR:
+            raise
+        break
+    thread = Thread(target=handleReq, args=(data, addr))
+    thread.start()
 
 
 if log: log.close()

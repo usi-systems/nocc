@@ -173,6 +173,9 @@ class Store:
     sequences = {}
     seq = 0
 
+    def __init__(self):
+        self.lock = threading.Lock()
+
     def clear(self):
         self.values, self.sequences, self.seq = {}, {}, 0
 
@@ -185,6 +188,10 @@ class Store:
                 value=self._val(o.key if o else k))
 
     def applyTxn(self, ops=[]):
+        with self.lock:
+            return self._applyTxn(ops)
+
+    def _applyTxn(self, ops=[]):
         if len(ops) < 1: return (STATUS_BADREQ, [])
 
         rb_ops = [o for o in ops if o.type == TXN_VALUE] # read before
