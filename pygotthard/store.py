@@ -6,6 +6,7 @@ import signal
 import errno
 from threading import Thread, Lock
 from gotthard import *
+from mysql_store import MySQLStore
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--port", type=int, help="port to bind on", required=True)
@@ -15,12 +16,16 @@ parser.add_argument("-r", "--recover", type=str, help="recover store from this f
 parser.add_argument("-v", "--verbosity", type=int, help="set verbosity level", default=0, required=False)
 parser.add_argument("-t", "--think", type=float, help="think time for requests", default=0, required=False)
 parser.add_argument("-s", "--serial", action='store_true', help="Process requests serially", default=False, required=False)
+parser.add_argument("-m", "--mysql", action='store_true', help="Use MySQL as backend DB", default=False, required=False)
 args = parser.parse_args()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', args.port))
 
-store = Store()
+if args.mysql:
+    store = MySQLStore()
+else:
+    store = Store()
 
 def recover(filename):
     with open(args.recover, 'r') as f:
