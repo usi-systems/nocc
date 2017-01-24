@@ -1,6 +1,7 @@
 import mysql.connector
 import time
 from gotthard import *
+from Queue import Queue
 
 MYSQL_USER='gotthard'
 MYSQL_PASS='1234'
@@ -9,16 +10,18 @@ MYSQL_DB='gotthard'
 class MySQLStore:
 
     def __init__(self):
-        # TODO: each request should use its own connection for isolation
-        self.cnx = mysql.connector.connect(user=MYSQL_USER, password=MYSQL_PASS, database=MYSQL_DB)
-
-    def _getCur(self):
-        return self.cnx.cursor()
+        self.connections = Queue()
+        self.concurrent_connections = 10
+        for _ in xrange(self.concurrent_connections):
+            cnx = mysql.connector.connect(user=MYSQL_USER, password=MYSQL_PASS, database=MYSQL_DB)
+            self.connections.put(cnx)
 
     def clear(self):
-        cur = self._getCur()
+        cnx = self.connections.get()
+        cur = cnx.cursor()
         cur.execute('TRUNCATE store')
         cur.execute('COMMIT')
+        self.connections.put(cnx)
 
     def applyTxn(self, ops=[]):
         if len(ops) < 1: return (STATUS_BADREQ, [])
@@ -28,7 +31,8 @@ class MySQLStore:
         w_ops = [o for o in ops if o.type == TXN_WRITE]
         res_ops = []
 
-        cur = self._getCur()
+        cnx = self.connections.get()
+        cur = cnx.cursor()
         cur.execute("START TRANSACTION WITH CONSISTENT SNAPSHOT")
 
         def readKeys(keys):
@@ -53,6 +57,8 @@ class MySQLStore:
             if len(corrections):
                 # also, invalidate any optimistic writes that may be cached at the switch:
                 undo_w = readKeys([o.key for o in w_ops if o.key not in [c.key for c in corrections]])
+                cur.execute('ROLLBACK')
+                self.connections.put(cnx)
                 return (STATUS_ABORT, corrections + undo_w)
 
         # Process all the write operations:
@@ -64,6 +70,7 @@ class MySQLStore:
         res_ops += [TxnOp(t=TXN_VALUE, key=o.key) for o in r_ops if o.key not in [r.key for r in res_ops]]
 
         cur.execute('COMMIT')
+        self.connections.put(cnx)
 
         return (STATUS_OK, res_ops)
 
