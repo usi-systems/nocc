@@ -250,7 +250,8 @@ class GotthardClient:
 
     def open(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.resolved_store_addr = (socket.gethostbyname_ex(self.store_addr[0])[2][0],
+        if self.store_addr[0]:
+            self.resolved_store_addr = (socket.gethostbyname_ex(self.store_addr[0])[2][0],
                                     self.store_addr[1])
         if self.resend_timeout:
             # recvfrom will timeout every 100ms and then we'll check whether resend_timeout has elapsed
