@@ -4,6 +4,7 @@ import socket
 import time
 import signal
 import errno
+from Queue import Queue
 from threading import Thread, Lock
 from gotthard import *
 from mysql_store import MySQLStore
@@ -37,17 +38,20 @@ class RecvQueue:
 
 class StoreServer:
 
-    def __init__(self, port=None, mysql=False, verbosity=0, think=0, serial=False, logger=None, recover=None):
+    def __init__(self, port=None, mysql=False, verbosity=0, think=0, threads=1, logger=None, recover=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('', port))
 
         self.verbosity = verbosity
         self.think = think
-        self.serial = serial
+        self.threads = threads
         self.log = logger
         self.recover_filename = recover
 
         self.recvq = RecvQueue()
+        assert self.threads > 0
+        if self.threads > 1:
+            self.req_queue = Queue()
 
         if mysql:
             self.store = MySQLStore()
@@ -84,7 +88,6 @@ class StoreServer:
                 time.sleep(wait)
 
     def handleReq(self, data, addr):
-        start_time = time.time()
         req = TxnMsg(binstr=data)
         if self.log: self.log.log("received", req=req)
         if self.think: time.sleep(self.think)
@@ -105,9 +108,19 @@ class StoreServer:
 
         self.sendResp(req, status, ops, addr)
 
-        #print time.time()-start_time
+    def reqThread(self):
+        while True:
+            e = self.req_queue.get()
+            if e is None: break
+            data, addr = e
+            self.handleReq(data, addr)
 
     def loop(self):
+        req_threads = []
+        if self.threads > 1:
+            req_threads = [Thread(target=self.reqThread) for _ in xrange(self.threads)]
+            for t in req_threads: t.start()
+
         while True:
             try:
                 data, addr = self.sock.recvfrom(MAX_TXNMSG_SIZE)
@@ -115,11 +128,13 @@ class StoreServer:
                 if code != errno.EINTR:
                     raise
                 break
-            if self.serial:
+            if self.threads == 1:
                 self.handleReq(data, addr)
             else:
-                thread = Thread(target=self.handleReq, args=(data, addr))
-                thread.start()
+                self.req_queue.put((data, addr))
+
+        for _ in req_threads: self.req_queue.put(None)
+        for t in req_threads: t.join()
 
 
 
@@ -131,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--recover", type=str, help="recover store from this file", required=False)
     parser.add_argument("-v", "--verbosity", type=int, help="set verbosity level", default=0, required=False)
     parser.add_argument("-t", "--think", type=float, help="think time for requests", default=0, required=False)
-    parser.add_argument("-s", "--serial", action='store_true', help="Process requests serially", default=False, required=False)
+    parser.add_argument("-j", "--threads", type=int, help="Number of threads", default=1, required=False)
     parser.add_argument("-m", "--mysql", action='store_true', help="Use MySQL as backend DB", default=False, required=False)
     args = parser.parse_args()
 
@@ -140,7 +155,7 @@ if __name__ == '__main__':
         log = GotthardLogger(args.log)
 
     server = StoreServer(port=args.port, mysql=args.mysql, verbosity=args.verbosity,
-            think=args.think, serial=args.serial, logger=log, recover=args.recover)
+            think=args.think, threads=args.threads, logger=log, recover=args.recover)
 
     def handler(signum, frame):
         if args.dump:
