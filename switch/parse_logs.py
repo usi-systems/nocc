@@ -222,6 +222,7 @@ def getExperimentStats(experiment_dir):
     asrt_txn_latencies = [t['latency'] for t in all_txns if t['has_assert']]
     othr_txn_latencies = [t['latency'] for t in all_txns if not t['has_assert']]
     all_txn_abrt_cnts = [t['abrt_cnt'] for t in all_txns]
+    asrt_txn_abrt_cnts = [t['abrt_cnt'] for t in all_txns if t['has_assert']]
 
     summary['asrt_txn_latency'] = np.mean(asrt_txn_latencies) if asrt_txn_latencies else 0
     summary['p99_asrt_txn_latency'] = np.percentile(asrt_txn_latencies, 99) if asrt_txn_latencies else 0
@@ -236,7 +237,8 @@ def getExperimentStats(experiment_dir):
     summary['asrt_txn_rate'] = len(asrt_txn_latencies) / summary['duration']
     summary['othr_txn_rate'] = len(othr_txn_latencies) / summary['duration']
 
-    summary['all_txn_abrt_cnt'] = np.mean(all_txn_abrt_cnts)
+    summary['all_txn_abrt_cnt'] = np.mean(all_txn_abrt_cnts or [0])
+    summary['asrt_txn_abrt_cnt'] = np.mean(asrt_txn_abrt_cnts or [0])
 
     summary['asrt_txn_ratio'] = len(asrt_txn_latencies) / float(len(all_txn_latencies))
 
