@@ -7,7 +7,6 @@ import errno
 from Queue import Queue
 from threading import Thread, Lock
 from gotthard import *
-from mysql_store import MySQLStore
 
 class RecvQueue:
     clients = {}
@@ -54,6 +53,7 @@ class StoreServer:
             self.req_queue = Queue()
 
         if mysql:
+            from mysql_store import MySQLStore
             self.store = MySQLStore()
         else:
             self.store = Store()
