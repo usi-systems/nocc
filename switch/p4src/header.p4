@@ -65,14 +65,9 @@ header_type op_parse_meta_t {
 
 header_type req_meta_t {
     fields {
-        bit<8> r_cnt;
-        bit<8> w_cnt;
-        bit<8> rb_cnt;
         bit<1> has_cache_miss;
-        bit<1> has_invalid_read;
-        bit<1> has_opti_invalid_read;
-
-        bit<1> read_cache_mode;
+        bit<1> has_bad_compare;
+        bit<1> has_bad_opti_compare;
 
         // tmp variables for doing swaps:
         bit<32> tmp_ipv4_dstAddr;

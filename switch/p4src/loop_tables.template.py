@@ -1,43 +1,40 @@
 import argparse
 
-tmpl_t_req_pass1 = lambda cnt: """
-table t_req_pass1 {
-    reads {
-        gotthard_hdr.op_cnt: exact;
-    }
+tmpl_t_handle_write = lambda idx: """
+table t_handle_write%i {
     actions {
-        _nop;
-        %s
+        do_handle_write%i;
     }
-    size: %d;
+    size: 1;
 }
-""" % (('\n' + ' ' * 8).join(['do_check_op%d;'%i for i in xrange(cnt)]), cnt+1)
+""".replace('%i', str(idx))
 
-tmpl_t_req_fix = lambda cnt: """
-table t_req_fix {
-    reads {
-        gotthard_hdr.op_cnt: exact;
-    }
+tmpl_t_bad_compare = lambda idx: """
+table t_bad_compare%i {
     actions {
-        _nop;
-        %s
+        do_bad_compare%i;
     }
-    size: %d;
+    size: 1;
 }
-""" % (('\n' + ' ' * 8).join(['do_req_fix%d;'%i for i in xrange(cnt)]), cnt+1)
+""".replace('%i', str(idx))
 
-tmpl_t_opti_update = lambda cnt: """
-table t_opti_update {
-    reads {
-        gotthard_hdr.op_cnt: exact;
-    }
+tmpl_t_bad_opti_compare = lambda idx: """
+table t_bad_opti_compare%i {
     actions {
-        _nop;
-        %s
+        do_bad_opti_compare%i;
     }
-    size: %d;
+    size: 1;
 }
-""" % (('\n' + ' ' * 8).join(['do_opti_update%d;'%i for i in xrange(cnt)]), cnt+1)
+""".replace('%i', str(idx))
+
+tmpl_t_delete_op = lambda idx: """
+table t_delete_op%i {
+    actions {
+        do_delete_op%i;
+    }
+    size: 1;
+}
+""".replace('%i', str(idx))
 
 tmpl_t_store_update = lambda cnt: """
 table t_store_update {
@@ -52,75 +49,46 @@ table t_store_update {
 }
 """ % (('\n' + ' ' * 8).join(['do_store_update%d;'%i for i in xrange(cnt)]), cnt+1)
 
-
-tmpl_do_check_op = lambda idx: """
-action do_check_op%i(in bit<1> read_cache_mode) {
-    %prev
-    req_meta.read_cache_mode = read_cache_mode;
-    req_meta.w_cnt = req_meta.w_cnt + (gotthard_op[%i].op_type == GOTTHARD_OP_WRITE ? (bit<8>) 1:0);
-    req_meta.rb_cnt = req_meta.rb_cnt + (gotthard_op[%i].op_type == GOTTHARD_OP_VALUE ? (bit<8>) 1:0);
-    req_meta.r_cnt = req_meta.r_cnt + (gotthard_op[%i].op_type == GOTTHARD_OP_READ ? (bit<8>) 1:0);
-    req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[%i].op_type == GOTTHARD_OP_READ ? (bit<1>)
-        (~is_cached_register[gotthard_op[%i].key] & ~is_opti_cached_register[gotthard_op[%i].key]) : 0);
-    req_meta.has_cache_miss = req_meta.has_cache_miss |
-        (gotthard_op[%i].op_type == GOTTHARD_OP_VALUE ? (bit<1>)
-        (~is_cached_register[gotthard_op[%i].key] & ~is_opti_cached_register[gotthard_op[%i].key]) : 0);
-    req_meta.has_opti_invalid_read = req_meta.has_opti_invalid_read |
-        (gotthard_op[%i].op_type == GOTTHARD_OP_VALUE and
-        is_opti_cached_register[gotthard_op[%i].key] == 1 and
-        opti_value_register[gotthard_op[%i].key] != gotthard_op[%i].value ? (bit<1>) 1:0);
-    req_meta.has_invalid_read = req_meta.has_invalid_read | req_meta.has_opti_invalid_read |
-        (gotthard_op[%i].op_type == GOTTHARD_OP_VALUE and
-        is_opti_cached_register[gotthard_op[%i].key] == 0 and
-        is_cached_register[gotthard_op[%i].key] == 1 and
-            value_register[gotthard_op[%i].key] != gotthard_op[%i].value ? (bit<1>) 1 : 0);
+tmpl_do_handle_write = lambda idx: """
+action do_handle_write%i() {
+    is_opti_cached_register[gotthard_op[%i].key] = 1;
+    is_cached_register[gotthard_op[%i].key] = 0;
+    opti_value_register[gotthard_op[%i].key] = gotthard_op[%i].value;
 }
-""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_check_op%d(read_cache_mode);'%(idx-1))
+""".replace('%i', str(idx))
 
-tmpl_do_req_fix = lambda idx: """
-action do_req_fix%i() {
-    %prev
-    gotthard_op[%i].op_type =
-        (gotthard_op[%i].op_type == GOTTHARD_OP_READ and req_meta.read_cache_mode == 1)
-        or gotthard_op[%i].op_type == GOTTHARD_OP_VALUE ?
-        (bit<8>) GOTTHARD_OP_VALUE : GOTTHARD_OP_NOP;
-    gotthard_op[%i].key = gotthard_op[%i].key;
-    gotthard_op[%i].value = is_opti_cached_register[gotthard_op[%i].key] == 1 ?
-        opti_value_register[gotthard_op[%i].key] : value_register[gotthard_op[%i].key];
+tmpl_do_bad_compare = lambda idx: """
+action do_bad_compare%i() {
+    req_meta.has_bad_compare = 1;
+    gotthard_op[%i].op_type = GOTTHARD_OP_VALUE;
+    gotthard_op[%i].value = value_register[gotthard_op[%i].key];
 }
-""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_req_fix%d();'%(idx-1))
+""".replace('%i', str(idx))
 
-tmpl_do_opti_update = lambda idx: """
-action do_opti_update%i() {
-    %prev
-    is_opti_cached_register[gotthard_op[%i].key] = gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
-        (bit<1>) 1 : is_opti_cached_register[gotthard_op[%i].key];
-    opti_value_register[gotthard_op[%i].key] = gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_WRITE ?
-        gotthard_op[%i].value : opti_value_register[gotthard_op[%i].key];
+tmpl_do_bad_opti_compare = lambda idx: """
+action do_bad_opti_compare%i() {
+    req_meta.has_bad_opti_compare = 1;
+    gotthard_op[%i].op_type = GOTTHARD_OP_VALUE;
+    gotthard_op[%i].value = opti_value_register[gotthard_op[%i].key];
 }
-""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_opti_update%d();'%(idx-1))
+""".replace('%i', str(idx))
+
+tmpl_do_delete_op = lambda idx: """
+action do_delete_op%i() {
+    gotthard_op[%i].op_type = GOTTHARD_OP_NOP;
+}
+""".replace('%i', str(idx))
+
 
 tmpl_do_store_update = lambda idx: """
-action do_store_update%i(in bit<1> opti_enabled) {
+action do_store_update%i() {
     %prev
-    value_register[gotthard_op[%i].key] =
-        (gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
-         gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
-            gotthard_op[%i].value : value_register[gotthard_op[%i].key];
-    is_cached_register[gotthard_op[%i].key] =
-        (gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_UPDATE or
-         gotthard_op[%i].op_type == (bit<8>)GOTTHARD_OP_VALUE) ?
-            (bit<1>)1 : is_cached_register[gotthard_op[%i].key];
-    is_opti_cached_register[gotthard_op[%i].key] = (gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_ABORT or
-        gotthard_hdr.status == (bit<8>) GOTTHARD_STATUS_OPTIMISTIC_ABORT) ?
-            (bit<1>) 0 : is_opti_cached_register[gotthard_op[%i].key];
-    // Always set this to 0 if not in optimistic mode:
-    is_opti_cached_register[gotthard_op[%i].key] = opti_enabled == 1 ?
-        (bit<1>) is_opti_cached_register[gotthard_op[%i].key] : 0;
+    value_register[gotthard_op[%i].key] = gotthard_op[%i].value;
+    is_cached_register[gotthard_op[%i].key] = 1;
+    // clear if this is an abort:
+    is_opti_cached_register[gotthard_op[%i].key] = (((bit<1>)gotthard_hdr.status) ^ 1) & is_opti_cached_register[gotthard_op[%i].key];
 }
-""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_store_update%d(opti_enabled);'%(idx-1))
-#""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_store_update%d();'%(idx-1))
+""".replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_store_update%d();'%(idx-1))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Gotthard P4 source code generation')
@@ -133,16 +101,19 @@ if __name__ == '__main__':
 
     out += "#define GOTTHARD_MAX_OP %d\n" % cnt
 
-    out += '\n'.join(map(tmpl_do_check_op, xrange(cnt)))
-    out += tmpl_t_req_pass1(cnt)
-
-    out += '\n'.join(map(tmpl_do_req_fix, xrange(cnt)))
-    out += tmpl_t_req_fix(cnt)
-
-    out += '\n'.join(map(tmpl_do_opti_update, xrange(cnt)))
-    out += tmpl_t_opti_update(cnt)
+    out += '\n'.join(map(tmpl_do_handle_write, xrange(cnt)))
+    out += '\n'.join(map(tmpl_t_handle_write, xrange(cnt)))
 
     out += '\n'.join(map(tmpl_do_store_update, xrange(cnt)))
     out += tmpl_t_store_update(cnt)
+
+    out += '\n'.join(map(tmpl_do_bad_compare, xrange(cnt)))
+    out += '\n'.join(map(tmpl_t_bad_compare, xrange(cnt)))
+
+    out += '\n'.join(map(tmpl_do_bad_opti_compare, xrange(cnt)))
+    out += '\n'.join(map(tmpl_t_bad_opti_compare, xrange(cnt)))
+
+    out += '\n'.join(map(tmpl_do_delete_op, xrange(cnt)))
+    out += '\n'.join(map(tmpl_t_delete_op, xrange(cnt)))
 
     print out
