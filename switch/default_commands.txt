@@ -3,9 +3,9 @@ table_set_default forward _drop
 table_set_default ipv4_lpm _drop
 
 table_set_default t_store_update _nop
-table_set_default t_req_pass1 _nop
-table_set_default t_req_fix _nop
-table_set_default t_opti_update _nop
+table_set_default t_cache_miss do_cache_miss
 
-table_add t_reply_client do_reply_ok 0 =>
-table_add t_reply_client do_reply_abort 1 =>
+table_add t_reply_client do_reply_opti_abort 0 1 =>
+table_add t_reply_client do_reply_opti_abort 1 1 =>
+table_add t_reply_client do_reply_abort 1 0 =>
+table_add t_reply_client do_reply_ok 0 0 =>

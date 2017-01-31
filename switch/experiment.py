@@ -187,13 +187,15 @@ def main():
         read_cache_enabled = 1 if conf['switch']['mode'] == 'read_cache' else 0
         opti_enabled = 1 if conf['switch']['mode'] == 'optimistic_abort' else 0
         for i in xrange(max_op_cnt):
-            t_entries.append("table_add t_store_update do_store_update%d %d => %d"%(i,i+1,opti_enabled))
-            t_entries.append("table_add t_req_pass1 do_check_op%d %d => %d"%(i,i+1,read_cache_enabled))
-            t_entries.append("table_add t_req_fix do_req_fix%d %d =>"%(i,i+1))
+            t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i+1))
+            t_entries.append("table_set_default t_bad_compare%d do_bad_compare%d"%(i,i))
+            t_entries.append("table_set_default t_bad_opti_compare%d do_bad_opti_compare%d"%(i,i))
+            t_entries.append("table_set_default t_delete_op%d do_delete_op%d"%(i,i))
+            t_entries.append("table_set_default t_handle_write%d do_handle_write%d"%(i,i))
 
-    if conf['switch']['mode'] == 'optimistic_abort':
-        for i in xrange(max_op_cnt):
-            t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i+1))
+    #if conf['switch']['mode'] == 'optimistic_abort':
+    #    for i in xrange(max_op_cnt):
+    #        t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i+1))
 
     for n, host in enumerate(hosts):
         t_entries.append("table_add send_frame rewrite_mac %d => %s" % (n+1, host['mac']))
