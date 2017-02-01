@@ -183,19 +183,27 @@ def main():
         t_entries = [l.rstrip() for l in f.readlines() if l != '\n']
 
     max_op_cnt = GOTTHARD_MAX_OP
-    if conf['switch']['mode'] != 'forward': # i.e. both early/opti abort
-        read_cache_enabled = 1 if conf['switch']['mode'] == 'read_cache' else 0
-        opti_enabled = 1 if conf['switch']['mode'] == 'optimistic_abort' else 0
+
+    if conf['switch']['mode'] in ['read_cache', 'optimistic_abort']:
+        t_entries.append("table_set_default t_store_update _nop")
+        t_entries.append("table_set_default t_cache_miss do_cache_miss")
+        t_entries.append("table_add t_reply_client do_reply_opti_abort 0 1 =>")
+        t_entries.append("table_add t_reply_client do_reply_opti_abort 1 1 =>")
+        t_entries.append("table_add t_reply_client do_reply_abort 1 0 =>")
+        t_entries.append("table_add t_reply_client do_reply_ok 0 0 =>")
         for i in xrange(max_op_cnt):
             t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i+1))
+
+    if conf['switch']['mode'] == 'optimistic_abort':
+        for i in xrange(max_op_cnt):
             t_entries.append("table_set_default t_bad_compare%d do_bad_compare%d"%(i,i))
             t_entries.append("table_set_default t_bad_opti_compare%d do_bad_opti_compare%d"%(i,i))
             t_entries.append("table_set_default t_delete_op%d do_delete_op%d"%(i,i))
             t_entries.append("table_set_default t_handle_write%d do_handle_write%d"%(i,i))
 
-    #if conf['switch']['mode'] == 'optimistic_abort':
-    #    for i in xrange(max_op_cnt):
-    #        t_entries.append("table_add t_opti_update do_opti_update%d %d =>"%(i,i+1))
+    if conf['switch']['mode'] == 'read_cache':
+        for i in xrange(max_op_cnt):
+            t_entries.append("table_set_default t_satisfy_read%d do_satisfy_read%d"%(i,i))
 
     for n, host in enumerate(hosts):
         t_entries.append("table_add send_frame rewrite_mac %d => %s" % (n+1, host['mac']))

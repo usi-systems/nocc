@@ -49,6 +49,15 @@ table t_store_update {
 }
 """ % (('\n' + ' ' * 8).join(['do_store_update%d;'%i for i in xrange(cnt)]), cnt+1)
 
+tmpl_t_satisfy_read = lambda idx: """
+table t_satisfy_read%i {
+    actions {
+        do_satisfy_read%i;
+    }
+    size: 1;
+}
+""".replace('%i', str(idx))
+
 tmpl_do_handle_write = lambda idx: """
 action do_handle_write%i() {
     is_opti_cached_register[gotthard_op[%i].key] = 1;
@@ -90,6 +99,13 @@ action do_store_update%i() {
 }
 """.replace('%i', str(idx)).replace('%prev', '' if idx == 0 else 'do_store_update%d();'%(idx-1))
 
+tmpl_do_satisfy_read = lambda idx: """
+action do_satisfy_read%i() {
+    gotthard_op[%i].op_type = GOTTHARD_OP_VALUE;
+    gotthard_op[%i].value = value_register[gotthard_op[%i].key];
+}
+""".replace('%i', str(idx))
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Gotthard P4 source code generation')
     parser.add_argument('--max-op', '-m', help='Number of TXN ops to support',
@@ -115,5 +131,8 @@ if __name__ == '__main__':
 
     out += '\n'.join(map(tmpl_do_delete_op, xrange(cnt)))
     out += '\n'.join(map(tmpl_t_delete_op, xrange(cnt)))
+
+    out += '\n'.join(map(tmpl_do_satisfy_read, xrange(cnt)))
+    out += '\n'.join(map(tmpl_t_satisfy_read, xrange(cnt)))
 
     print out
