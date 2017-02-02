@@ -1,85 +1,74 @@
-parser start {
-    return parse_ethernet;
-}
-
-#define ETHERTYPE_IPV4 0x0800
-
-header ethernet_t ethernet;
-
-parser parse_ethernet {
-    extract(ethernet);
-    return select(latest.etherType) {
-        ETHERTYPE_IPV4 : parse_ipv4;
-        default: ingress;
+parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    @name("parse_ethernet") state parse_ethernet {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            16w0x800: parse_ipv4;
+            default: accept;
+        }
+    }
+    @name("parse_ipv4") state parse_ipv4 {
+        packet.extract(hdr.ipv4);
+        transition select(hdr.ipv4.protocol) {
+            8w0x11: parse_udp;
+            default: accept;
+        }
+    }
+    @name("parse_udp") state parse_udp {
+        packet.extract(hdr.udp);
+        transition select(hdr.udp.dstPort) {
+            GOTTHARD_PORT: parse_gotthard;
+            default: parse_udp2;
+        }
+    }
+    @name("parse_udp2") state parse_udp2 {
+        transition select(hdr.udp.srcPort) {
+            GOTTHARD_PORT: parse_gotthard;
+            default: accept;
+        }
+    }
+    @name("parse_gotthard") state parse_gotthard {
+        packet.extract(hdr.gotthard);
+        meta.parse_metadata.remaining_cnt = hdr.gotthard.op_cnt;
+        transition select(meta.parse_metadata.remaining_cnt) {
+            0: accept;
+            default: parse_gotthard_op;
+        }
+    }
+    @name("parse_gotthard_op") state parse_gotthard_op {
+        packet.extract(hdr.gotthard_op.next);
+        meta.parse_metadata.remaining_cnt = meta.parse_metadata.remaining_cnt - 1;
+        transition select(meta.parse_metadata.remaining_cnt) {
+            0: accept;
+            default: parse_gotthard_op;
+        }
+    }
+    @name("start") state start {
+        transition parse_ethernet;
     }
 }
 
-header ipv4_t ipv4;
-
-field_list ipv4_checksum_list {
-    ipv4.version;
-    ipv4.ihl;
-    ipv4.diffserv;
-    ipv4.totalLen;
-    ipv4.identification;
-    ipv4.flags;
-    ipv4.fragOffset;
-    ipv4.ttl;
-    ipv4.protocol;
-    ipv4.srcAddr;
-    ipv4.dstAddr;
-}
-
-field_list_calculation ipv4_checksum {
-    input {
-        ipv4_checksum_list;
-    }
-    algorithm : csum16;
-    output_width : 16;
-}
-
-calculated_field ipv4.hdrChecksum  {
-    verify ipv4_checksum;
-    update ipv4_checksum;
-}
-
-#define IPTYPE_UDP 0x11
-
-parser parse_ipv4 {
-    extract(ipv4);
-    return select(latest.protocol) {
-        IPTYPE_UDP: parse_udp;
-        default: ingress;
+control DeparserImpl(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr.ethernet);
+        packet.emit(hdr.ipv4);
+        packet.emit(hdr.udp);
+        packet.emit(hdr.gotthard);
+        packet.emit(hdr.gotthard_op);
     }
 }
 
-
-header udp_t udp;
-
-parser parse_udp {
-    extract(udp);
-    return parse_gotthard;
-}
-
-header gotthard_hdr_t gotthard_hdr;
-header gotthard_op_t gotthard_op[GOTTHARD_MAX_OP];
-
-header op_parse_meta_t parse_meta;
-
-parser parse_op {
-    extract(gotthard_op[next]);
-    set_metadata(parse_meta.remaining_cnt, parse_meta.remaining_cnt - 1);
-    return select(parse_meta.remaining_cnt) {
-        0: ingress;
-        default: parse_op;
+control verifyChecksum(in headers hdr, inout metadata meta) {
+    Checksum16() ipv4_checksum;
+    apply {
+        if (hdr.ipv4.hdrChecksum == ipv4_checksum.get({ hdr.ipv4.version, hdr.ipv4.ihl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.flags, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr }))
+            mark_to_drop();
     }
 }
 
-parser parse_gotthard {
-    extract(gotthard_hdr);
-    set_metadata(parse_meta.remaining_cnt, gotthard_hdr.op_cnt);
-    return select(parse_meta.remaining_cnt) {
-        0: ingress;
-        default: parse_op;
+control computeChecksum(inout headers hdr, inout metadata meta) {
+    Checksum16() ipv4_checksum;
+    apply {
+        hdr.ipv4.hdrChecksum = ipv4_checksum.get({ hdr.ipv4.version, hdr.ipv4.ihl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.flags, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr });
     }
 }
+
