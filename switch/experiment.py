@@ -185,16 +185,16 @@ def main():
     max_op_cnt = GOTTHARD_MAX_OP
 
     if conf['switch']['mode'] in ['read_cache', 'optimistic_abort']:
-        t_entries.append("table_set_default t_store_update _nop")
-        t_entries.append("table_set_default t_cache_miss do_cache_miss")
-        t_entries.append("table_add t_reply_client do_reply_opti_abort 0 1 =>")
-        t_entries.append("table_add t_reply_client do_reply_opti_abort 1 1 =>")
-        t_entries.append("table_add t_reply_client do_reply_abort 1 0 =>")
-        t_entries.append("table_add t_reply_client do_reply_ok 0 0 =>")
+        #t_entries.append("table_set_default t_store_update _nop")
         for i in xrange(max_op_cnt):
             t_entries.append("table_add t_store_update do_store_update%d %d =>"%(i,i+1))
 
     if conf['switch']['mode'] == 'optimistic_abort':
+        t_entries.append("table_add t_reply_client do_reply_opti_abort 0 1 =>")
+        t_entries.append("table_add t_reply_client do_reply_opti_abort 1 1 =>")
+        t_entries.append("table_add t_reply_client do_reply_abort 1 0 =>")
+        t_entries.append("table_add t_reply_client do_reply_ok 0 0 =>")
+        t_entries.append("table_set_default t_cache_miss do_cache_miss")
         for i in xrange(max_op_cnt):
             t_entries.append("table_set_default t_bad_compare%d do_bad_compare%d"%(i,i))
             t_entries.append("table_set_default t_bad_opti_compare%d do_bad_opti_compare%d"%(i,i))
@@ -202,8 +202,9 @@ def main():
             t_entries.append("table_set_default t_handle_write%d do_handle_write%d"%(i,i))
 
     if conf['switch']['mode'] == 'read_cache':
+        t_entries.append("table_add t_reply_client do_reply_ok =>")
         for i in xrange(max_op_cnt):
-            t_entries.append("table_set_default t_satisfy_read%d do_satisfy_read%d"%(i,i))
+            t_entries.append("table_add t_satisfy_read do_satisfy_read%d %d =>"%(i, i+1))
 
     for n, host in enumerate(hosts):
         t_entries.append("table_add send_frame rewrite_mac %d => %s" % (n+1, host['mac']))
