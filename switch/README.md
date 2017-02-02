@@ -20,6 +20,6 @@ Generate some experiments to test normal forwarding, early abort and optimistic 
 
 Then, run the experiments:
 
-    ./run_experiment.sh test_basic
-    ./run_experiment.sh test_early
-    ./run_experiment.sh test_opti
+    ./run_experiment.sh test_basic/experiment.json
+    ./run_experiment.sh test_early/experiment.json
+    ./run_experiment.sh test_opti/experiment.json
