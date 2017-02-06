@@ -3,22 +3,31 @@ FROM phusion/baseimage
 # Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]
 
+ARG BUILD_CORES=2
+ENV BUILD_CORES $BUILD_CORES
+
 ADD ./gitconfig /root/.gitconfig
 ADD ./p4_startup.sh /etc/my_init.d/p4_startup.sh
+ADD ./env.sh /root/env.sh
 
 WORKDIR /root
-RUN apt-get update && apt-get install -y zsh git vim htop build-essential sudo wget net-tools netcat-openbsd iputils-ping
-RUN git clone https://github.com/p4lang/tutorials
-ADD ./env.sh /root/tutorials/p4v1_1/env.sh
-RUN git clone https://github.com/p4lang/p4factory && cd p4factory && git submodule update --init --recursive
-WORKDIR /root/p4factory
-RUN grep -v -E "doxygen|ipython-notebook|python-sympy|wireshark" install_deps.sh > install_deps.sh.2 && chmod +x ./install_deps.sh.2 && ./install_deps.sh.2
-RUN ./autogen.sh && ./configure
-RUN pip install -r submodules/p4c-bm/requirements_v1_1.txt && cd submodules/bm && make -j2
+RUN apt-get update && apt-get install -y zsh git vim htop build-essential sudo wget net-tools netcat-openbsd iputils-ping ethtool mininet
+RUN git clone https://github.com/p4lang/p4factory
+RUN git clone https://github.com/p4lang/p4c
+RUN git clone https://github.com/p4lang/behavioral-model
 
-RUN sed -i 's/daemonize \+yes/daemonize no/' /etc/redis/redis.conf
-RUN mkdir /etc/service/redis
-ADD ./redis.sh /etc/service/redis/run
+# Install Protobuf >=3.0.0
+#RUN apt-get install -y autoconf automake libtool curl make g++ unzip
+#RUN git clone --depth 1 -b v3.0.2 https://github.com/google/protobuf
+#RUN cd protobuf && ./autogen.sh && ./configure && make -j$BUILD_CORES && make install && ldconfig
+
+WORKDIR /root/p4c
+RUN git checkout 5ac1559984c7b75b29fda8a9d1ae6ed5e3a30cd9
+RUN apt-get install -y g++ git automake libtool libgc-dev bison flex libgmp-dev libboost-dev python2.7 python-scapy python-ipaddr tcpdump
+RUN ./bootstrap.sh && cd build && make -j$BUILD_CORES
+
+WORKDIR /root/behavioral-model
+RUN ./install_deps.sh && ./autogen.sh && ./configure && make -j$BUILD_CORES
 
 WORKDIR /root
 

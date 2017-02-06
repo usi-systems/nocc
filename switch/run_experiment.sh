@@ -1,14 +1,7 @@
 #!/bin/bash
 
 THIS_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-
 source $THIS_DIR/env.sh
-
-P4C_BM_SCRIPT=$P4C_BM_PATH/p4c_bm/__main__.py
-
-SWITCH_PATH=$BMV2_PATH/targets/simple_switch/simple_switch
-
-CLI_PATH=$BMV2_PATH/tools/runtime_CLI.py
 
 if [ $# -lt 1 ]; then
     echo "Please specify experiment JSON conf file"
@@ -37,9 +30,11 @@ then
     echo $P4C_PATH/build/p4c-bm2-ss p4src/$PROG.p4 -o $PROG.json --p4-16
     $P4C_PATH/build/p4c-bm2-ss p4src/$PROG.p4 -o $PROG.json --p4-16
 fi
+
 sudo python experiment.py \
     --behavioral-exe $BMV2_PATH/targets/simple_switch/simple_switch \
     --config $CONF_FILE \
     --json $PROG.json $@
 
-#--pcap-dump \
+#    --pcap-dump \
+#    --cli \
