@@ -199,7 +199,7 @@ class SoftwareSwitch:
                 continue
 
             # Update our cache with any VALUE op from the store
-            if self.mode != 'optimistic_abort' or res.status == STATUS_ABORT or res.status = STATUS_OPTIMISTIC_ABORT:
+            if self.mode != 'optimistic_abort' or res.status == STATUS_ABORT or res.status == STATUS_OPTIMISTIC_ABORT:
                 for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
                     self.cache.insert(o=o)
 
