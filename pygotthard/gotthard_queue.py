@@ -8,9 +8,11 @@ class GotthardQueue:
         self.cl = cl
         self.size = size
         if self.cl.closed: self.cl.open()
-        res = self.cl.req(RB(1, ''), W(1, '0 0 0'))
+        res = self.cl.req(RB(1, ''), W(1, '0 0 1'))
+        self.txns = 1
         self.meta = res.op(k=1).value
         self.count, _, _ = self._unpack_meta(self.meta)
+        self.aborts = 0
 
     def _pack_meta(self, count, head, tail):
         return ' '.join(map(str, [count, head, tail]))
@@ -25,19 +27,24 @@ class GotthardQueue:
             assert self.count+1 <= self.size
 
             new_head = (head + 1) % self.size
-            new_meta = self._pack_meta(self.count+1, new_head, new_head if self.count == 0 else tail)
+            new_meta = self._pack_meta(self.count+1, new_head, tail)
 
             res = self.cl.req(RB(1, self.meta), W(1, new_meta), W(new_head+2, v))
-            self.meta = new_meta
+            self.txns += 1
+            self.meta = res.op(k=1).value
 
             if res.status == STATUS_OK:
                 break
-            else:
-                self.meta = res.op(k=1).value
+
+            self.aborts += 1
 
     def pop(self):
         while True:
             self.count, head, tail = self._unpack_meta(self.meta)
+
+            if self.count == 0:
+                self.meta = self.cl.req(R(1)).op(k=1).value
+                self.count, head, tail = self._unpack_meta(self.meta)
 
             if self.count == 0:
                 return None
@@ -46,12 +53,14 @@ class GotthardQueue:
             new_meta = self._pack_meta(self.count-1, head, new_tail)
 
             res = self.cl.req(RB(1, self.meta), W(1, new_meta), R(tail+2))
+            self.txns += 1
             self.meta = res.op(k=1).value
 
-            if res.status != STATUS_OK:
-                continue
+            if res.status == STATUS_OK:
+                return res.op(k=tail+2).value.rstrip('\0')
 
-            return res.op(k=tail+2).value.rstrip('\0')
+            self.aborts += 1
+
 
 
 if __name__ == '__main__':

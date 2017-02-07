@@ -163,6 +163,7 @@ class TxnMsg:
     def __iter__(self):
         if self.flags.type == TYPE_RES: yield 'status', status_to_string[self.status]
         if self.flags.from_switch: yield 'from_switch', self.flags.from_switch
+        if self.flags.reset: yield 'reset', self.flags.reset
         for f in ['cl_id', 'req_id', 'ops', 'frag_seq', 'frag_cnt']:
             yield f, getattr(self, f)
 

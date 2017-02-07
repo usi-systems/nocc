@@ -7,15 +7,25 @@ import time
 from gotthard import *
 from gotthard_queue import GotthardQueue
 
+last_producer_id = 10000
+last_consumer_id = 20000
+
 class QueueClient(Thread, GotthardClient):
     def __init__(self, producer=False, consumer=False, duration=10, size=100, log=None, store_addr=None, think=None, think_var=None, resend_timeout=None):
-        GotthardClient.__init__(self, store_addr=store_addr, logger=log, resend_timeout=resend_timeout)
+        global last_producer_id
+        global last_consumer_id
         Thread.__init__(self)
         self.size = size
         self.think = think
         self.think_var = think_var
-        self.producer = producer or not consumer
         self.duration = duration
+        self.producer = producer or not consumer
+        if self.producer: last_producer_id += 1
+        else: last_consumer_id += 1
+        self.cl_id = last_producer_id if self.producer else last_consumer_id
+
+        GotthardClient.__init__(self, store_addr=store_addr, logger=log,
+                resend_timeout=resend_timeout, cl_id=self.cl_id)
 
     def run(self):
         if self.think and self.think_var: think_sigma = self.think * self.think_var
@@ -23,15 +33,15 @@ class QueueClient(Thread, GotthardClient):
         self.op_count = 0
         self.extent = 0
         with self:
-            gq = GotthardQueue(self, self.size)
+            self.gq = GotthardQueue(self, self.size)
             start = time.time()
             while time.time() - start < self.duration:
                 if self.producer:
-                    gq.push('x')
+                    self.gq.push('%d_%d' % (self.cl_id, self.op_count))
                 else:
-                    gq.pop()
+                    v = self.gq.pop()
 
-                if gq.count > self.extent: self.extent = gq.count
+                if self.gq.count > self.extent: self.extent = self.gq.count
 
                 self.op_count += 1
 
@@ -59,9 +69,13 @@ if __name__ == '__main__':
 
     threads = producers + consumers
     shuffle(threads)
+    threads[0].open()
+    threads[0].reset()
     for t in threads: t.start()
     for t in threads: t.join()
 
-    print "Push count:", sum([p.op_count for p in producers])
-    print "Pop count: ", sum([c.op_count for c in consumers])
-    print "Extent: ", max([t.extent for t in threads])
+    print "Push count:", [p.op_count for p in producers], sum([p.op_count for p in producers])
+    print "Pop count: ", [c.op_count for c in consumers], sum([c.op_count for c in consumers])
+    print "Extent:    ", max([t.extent for t in threads])
+    print "Aborts:    ", [t.gq.aborts for t in threads], sum([t.gq.aborts for t in threads])
+    print "TXNs:      ", [t.gq.txns for t in threads], sum([t.gq.txns for t in threads])

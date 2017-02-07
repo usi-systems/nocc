@@ -21,7 +21,7 @@ class SwitchCache:
     def insert(self, key=None, value=None, o=None):
         if o:
             key, value = o.key, o.value
-        if key in self.optimistic_values: del self.optimistic_values[key]
+        if key in self.optimistic_values: self.optimistic_values[key] = None
         self.values[key] = value
 
     def optimisticInsert(self, key=None, value=None, o=None):
@@ -29,7 +29,8 @@ class SwitchCache:
 
     def optiValue(self, o=None, key=None):
         key = o.key if o else key
-        if key in self.optimistic_values: return self.optimistic_values[key]
+        opti_val = self.optimistic_values.get(key)
+        if opti_val is not None: return opti_val
         elif key in self.values: return self.values[key]
         else: return '' # by default, a missing object has value ''
 
@@ -80,7 +81,7 @@ class StorePort(asyncore.dispatcher):
 
 class SoftwareSwitch:
 
-    def __init__(self, store_addr=None, bind_addr=None, mode='early_abort', verbosity=0,
+    def __init__(self, store_addr=None, bind_addr=None, mode='optimistic_abort', verbosity=0,
                  store_threads=128, client_threads=128, store_delay=None, client_delay=None):
         self.mode = mode
         self.verbosity = verbosity
@@ -162,8 +163,9 @@ class SoftwareSwitch:
         was_optimistic = False
         bad_reads = []
         for rb in rb_ops:
-            if self.mode == 'optimistic_abort' and rb.key in self.cache.optimistic_values:
-                if rb.value != self.cache.optimistic_values[rb.key]:
+            opti_val = self.cache.optimistic_values.get(rb.key)
+            if self.mode == 'optimistic_abort' and opti_val is not None:
+                if rb.value != opti_val:
                     was_optimistic = True
                     bad_reads.append(self._op(o=rb, opti=True))
             elif rb.key in self.cache.values:
@@ -199,7 +201,7 @@ class SoftwareSwitch:
                 continue
 
             # Update our cache with any VALUE op from the store
-            if self.mode != 'optimistic_abort' or res.status == STATUS_ABORT or res.status == STATUS_OPTIMISTIC_ABORT:
+            if self.mode == 'read_cache' or res.status == STATUS_ABORT or res.status == STATUS_OPTIMISTIC_ABORT:
                 for o in [o for o in res.ops if o.type == TXN_VALUE or o.type == TXN_UPDATED]:
                     self.cache.insert(o=o)
 
@@ -213,7 +215,7 @@ if __name__ == '__main__':
                         type=float, required=False, default=None)
     parser.add_argument("--client-delta", "-d", help="delay (s)  sending/receiving with client",
                         type=float, required=False, default=None)
-    parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'early_abort', 'optimistic_abort'], type=str, default="early_abort")
+    parser.add_argument("--mode", "-m", choices=['forward', 'read_cache', 'optimistic_abort'], type=str, default="optimistic_abort")
     parser.add_argument("--verbosity", "-v", type=int, help="set verbosity level", default=0, required=False)
     parser.add_argument("store_host", type=str, help="store hostname")
     parser.add_argument("store_port", type=int, help="store port")
