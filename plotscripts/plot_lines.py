@@ -13,6 +13,12 @@ import argparse
 import itertools
 import math
 
+matplotlib.rcParams['ps.useafm'] = True
+matplotlib.rcParams['pdf.use14corefonts'] = True
+matplotlib.rcParams['text.usetex'] = True
+#plt.rc('font',family='Times New Roman')
+
+
 #plt.style.use('ggplot')
 #matplotlib.rcParams.update({'font.size': 16})
 #matplotlib.rcParams.update({'font.weight': 'bold'})
