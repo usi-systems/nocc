@@ -2,10 +2,9 @@
 import argparse
 from threading import Thread
 from gotthard import *
-from random import gauss, randint
+from random import gauss, randint, random
 from time import sleep
 import time
-from numpy.random import choice
 import re
 
 R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
@@ -13,13 +12,15 @@ R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 op_name_to_type = {'R': TXN_READ, 'W': TXN_WRITE, 'A': TXN_VALUE}
 
 class TxnEngine:
-    re_tmpl = re.compile('([a-zA-Z]+)\(([^,]+),?\s*([^)]+)?\)')
+    re_tmpl = re.compile('([a-zA-Z]+)\(([^,)]+),?\s*([^)]+)?\)')
     re_value = re.compile('^([0-9]+|[a-zA-Z])\s*(([+-])\s*([0-9]+|[a-zA-Z]))?$')
 
     def __init__(self, templates, p, count=None, duration=None):
         assert len(templates) == len(p)
         assert count is not None or duration is not None
-        self.p = p
+        # sort templates based on ascending probability
+        sorted_templates, self.p = zip(*sorted(zip(templates, p), key=lambda t: t[1]))
+        self.p_range = [sum(self.p[:i+1]) for i in range(len(self.p))]
         self.key_symbols = [] # all the symbols. e.g. [x, y, z]
         self.symbol_to_key = {} # maps a symbol to a concrete key. e.g. x:1, y:2
         self.key_to_symbol = {} # maps a concrete key to a symbol. e.g. 1:x, 2:y
@@ -30,10 +31,11 @@ class TxnEngine:
         self.current_txn = None # currently executing TXN
 
         self.transactions = []
-        for tmpl in templates: # for each TXN
+        for tmpl in sorted_templates: # for each TXN
             op_tuples = self.re_tmpl.findall(tmpl)
             txn = map(self._parseOp, op_tuples)
             self.transactions.append(txn)
+        self.transaction_count = len(self.transactions)
 
         for n, symbol in enumerate(sorted(self.key_symbols)):
             assert len(symbol) == 1, "keys should be a single char"
@@ -91,7 +93,15 @@ class TxnEngine:
         return [opgen() for opgen in self.current_txn]
 
     def _chooseTxn(self):
-        self.current_txn = choice(self.transactions, p=self.p)
+        # XXX This is really slow:
+        #from numpy.random import choice
+        #self.current_txn = choice(self.transactions, p=self.p)
+        n = random()
+        for i in xrange(self.transaction_count):
+            if self.p_range[i] >= n:
+                self.current_txn = self.transactions[i]
+                break
+
 
     def getInitTxn(self):
         if self.duration is not None:
@@ -178,6 +188,10 @@ if __name__ == '__main__':
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 
-    for cl in clients: cl.start()
-    for cl in clients: cl.join()
+    if len(clients) == 1:
+        clients[0].run()
+    else:
+        for cl in clients: cl.start()
+        for cl in clients: cl.join()
+    for cl in clients: print cl.engine.count
     if logger: logger.close()

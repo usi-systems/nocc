@@ -222,6 +222,7 @@ def getExperimentStats(experiment_dir):
     asrt_txn_latencies = [t['latency'] for t in all_txns if t['has_assert']]
     othr_txn_latencies = [t['latency'] for t in all_txns if not t['has_assert']]
     all_txn_abrt_cnts = [t['abrt_cnt'] for t in all_txns]
+    asrt_txn_abrt_cnts = [t['abrt_cnt'] for t in all_txns if t['has_assert']]
 
     summary['asrt_txn_latency'] = np.mean(asrt_txn_latencies) if asrt_txn_latencies else 0
     summary['p99_asrt_txn_latency'] = np.percentile(asrt_txn_latencies, 99) if asrt_txn_latencies else 0
@@ -236,7 +237,8 @@ def getExperimentStats(experiment_dir):
     summary['asrt_txn_rate'] = len(asrt_txn_latencies) / summary['duration']
     summary['othr_txn_rate'] = len(othr_txn_latencies) / summary['duration']
 
-    summary['all_txn_abrt_cnt'] = np.mean(all_txn_abrt_cnts)
+    summary['all_txn_abrt_cnt'] = np.mean(all_txn_abrt_cnts or [0])
+    summary['asrt_txn_abrt_cnt'] = np.mean(asrt_txn_abrt_cnts or [0])
 
     summary['asrt_txn_ratio'] = len(asrt_txn_latencies) / float(len(all_txn_latencies))
 
@@ -253,11 +255,12 @@ def getExperimentStats(experiment_dir):
         for k, v in tpcc_stats.items(): summary[k] = v
 
     total_delta = conf['total_delay'] if 'total_delay' in conf else conf['server']['delay'] + conf['clients'][0]['delay']
+    delta_ratio = conf['delta_ratio'] if 'delta_ratio' in conf else float(total_delta)/(conf['clients'][0]['delay'] or 1)
 
     experiment_params = dict(client_d=conf['clients'][0]['delay'],
                 store_D=conf['server']['delay'],
                 total_delta=total_delta,
-                delta_ratio=conf['delta_ratio'] if 'delta_ratio' in conf else float(total_delta)/conf['clients'][0]['delay'],
+                delta_ratio=delta_ratio,
                 num_clients=len(conf['clients']),
                 think=conf['think_s'] if 'think_s' in conf else 0,
                 think_var=conf['think_v'] if 'think_v' in conf else 0,
