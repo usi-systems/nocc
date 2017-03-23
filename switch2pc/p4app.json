@@ -1,0 +1,65 @@
+{
+  "program": "p4src/twopc_router.p4",
+  "language": "p4-16",
+  "targets": {
+
+    "unittest": {
+      "use": "multiswitch",
+      "links": [["h1", "s1"]],
+      "hosts": {
+        "h1": {
+          "cmd": "python test/switch.py",
+          "wait": true
+        }
+      },
+      "switches": {
+          "s1": {
+              "entries": "commands.txt"
+          }
+      },
+      "after": {
+        "cmd": [
+            "echo register_read start_ts_register 1 | simple_switch_CLI --json p4src/twopc_router.p4.json",
+            "echo register_read start_ts_register 3 | simple_switch_CLI --json p4src/twopc_router.p4.json"
+        ]
+      },
+      "bmv2_log": true,
+      "pcap_dump": true,
+      "cli": false
+    },
+
+    "default": {
+      "use": "multiswitch",
+      "links": [["h1", "s1", 5], ["h2", "s1"], ["h3", "s1"], ["h99", "s1"]],
+      "hosts": {
+        "h99": {
+            "cmd": "./stresstest.py -c 1 -n 1000 h1:9000",
+            "wait": true
+        },
+        "h1": {
+            "cmd": "./coordinator.py -p 9000 -t 1 h2:8000 h3:8000",
+            "startup_sleep": 0.1,
+            "wait": false
+        },
+        "h2": {
+            "cmd": "./participant.py -p 8000 -t 1",
+            "startup_sleep": 0.1,
+            "wait": false
+        },
+        "h3": {
+            "cmd": "./participant.py -p 8000 -t 1",
+            "startup_sleep": 0.1,
+            "wait": false
+        }
+      },
+      "switches": {
+          "s1": {
+              "entries": "commands.txt"
+          }
+      },
+      "bmv2_log": true,
+      "pcap_dump": true,
+      "cli": false
+    }
+  }
+}

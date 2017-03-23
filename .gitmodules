@@ -1,0 +1,3 @@
+[submodule "switch2pc/third-party/uhashring"]
+	path = switch2pc/third-party/uhashring
+	url = https://github.com/ultrabug/uhashring

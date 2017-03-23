@@ -1,0 +1,23 @@
+#ifndef __CONFIG_P4__
+#define __CONFIG_P4__ 1
+
+#define PARTICIPANT_PORT 8000
+#define COORDINATOR_PORT 9000
+
+#define INST_EXPIRE_US 2000000
+
+#define MAX_TXN_REGISTERS 20000
+
+#define MSG_TYPE_REQ 1
+#define MSG_TYPE_RES 2
+
+#define MSG_TYPE_PREPARE 3
+#define MSG_TYPE_VOTE 4
+#define MSG_TYPE_COMMIT 5
+#define MSG_TYPE_COMMITTED 6
+
+#define STATUS_OK 1
+#define STATUS_ABORT 2
+
+#endif // __CONFIG_P4__
+
