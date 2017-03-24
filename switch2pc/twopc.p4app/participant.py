@@ -13,8 +13,7 @@ from minitxn import *
 from minitxn import MiniTxnParser
 from minitxn import writeSet, readSet, compareSet, valueSet
 
-def log(*args):
-    sys.stderr.write(' '.join(map(str, args)))
+def log(*args): sys.stderr.write(' '.join(map(str, args)))
 
 class FakeLock:
     def __enter__(self):
@@ -176,7 +175,7 @@ class Participant(threading.Thread):
         coordinator_addr = inst['addr']
         del self.instances[msg['txn_id']]
 
-        res = dict(msg, msg_type=MSG_TYPE_COMMITTED, status=STATUS_OK, ops=[], from_switch=0)
+        res = dict(msg, msg_type=MSG_TYPE_COMMITTED, ops=[], from_switch=0)
         self.send(res, coordinator_addr)
 
         #wcnt, rcnt = 0, 0

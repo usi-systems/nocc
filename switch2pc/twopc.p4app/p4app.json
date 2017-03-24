@@ -33,21 +33,21 @@
       "links": [["h1", "s1", 5], ["h2", "s1"], ["h3", "s1"], ["h99", "s1"]],
       "hosts": {
         "h99": {
-            "cmd": "./stresstest.py -c 1 -n 1000 h1:9000",
+            "cmd": "./load_generator.py -c 4 -d 30 -l /tmp/p4app_logs/client.log h1:9000",
             "wait": true
         },
         "h1": {
-            "cmd": "./coordinator.py -p 9000 -t 1 h2:8000 h3:8000",
+            "cmd": "./coordinator.py -p 9000 -t 4 h2:8000 h3:8000",
             "startup_sleep": 0.1,
             "wait": false
         },
         "h2": {
-            "cmd": "./participant.py -p 8000 -t 1",
+            "cmd": "./participant.py -p 8000 -t 4",
             "startup_sleep": 0.1,
             "wait": false
         },
         "h3": {
-            "cmd": "./participant.py -p 8000 -t 1",
+            "cmd": "./participant.py -p 8000 -t 4",
             "startup_sleep": 0.1,
             "wait": false
         }

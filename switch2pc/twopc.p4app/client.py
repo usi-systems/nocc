@@ -6,11 +6,12 @@ from minitxn import writeSet, readSet, compareSet, valueSet
 
 class Client:
 
-    def __init__(self, server_addr=('127.0.0.1', 9000), bind_addr=('', 0), cl_id=None):
+    def __init__(self, server_addr=('127.0.0.1', 9000), bind_addr=('', 0), cl_id=None, logger=None):
         self.server_addr = server_addr
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(bind_addr)
         self.sock.settimeout(10)
+        self.logger = logger
         self.cl_addr = self.sock.getsockname()
         self.cl_name = ':'.join(map(str, self.cl_addr))
         self.parser = MiniTxnParser()
@@ -74,6 +75,7 @@ class Client:
         return txn_res
 
     def send(self, txn_req, blocking=True):
+        if self.logger: self.logger.log(req=txn_req)
         self.sock.sendto(self.parser.dumps(txn_req), self.server_addr)
         if blocking:
             return self.recv(txn_id=txn_req['txn_id'])
@@ -82,6 +84,7 @@ class Client:
         while True:
             data, addr = self.sock.recvfrom(TXN_MSG_MAX_SIZE)
             txn_res = self.parser.loads(data)
+            if self.logger: self.logger.log(res=txn_res)
             if txn_id is None or txn_id == txn_res['txn_id']:
                 return txn_res
 

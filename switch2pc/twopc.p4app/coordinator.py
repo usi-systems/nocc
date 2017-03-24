@@ -14,8 +14,7 @@ from minitxn import *
 from minitxn import MiniTxnParser
 from minitxn import writeSet, readSet, compareSet, valueSet
 
-def log(*args):
-    sys.stderr.write(' '.join(map(str, args)))
+def log(*args): sys.stderr.write(' '.join(map(str, args)))
 
 class Coordinator(threading.Thread):
 
@@ -101,29 +100,29 @@ class Coordinator(threading.Thread):
             else:
                 assert False, "Unexpected message type: " + str(msg['msg_type'])
 
-    def _handleNewTxn(self, msg, addr):
+    def _handleNewTxn(self, req_msg, addr):
         with self.lock:
             self.last_txn_id += 1
             txn_id = self.last_txn_id
         node_msgs = {}
-        for op_type, key, value in msg['ops']:
+        for op_type, key, value in req_msg['ops']:
             node = self.hashring.get_node(key)
             if node not in node_msgs:
-                node_msgs[node] = msg.copy()
+                node_msgs[node] = req_msg.copy()
                 node_msgs[node]['txn_id'] = txn_id
                 node_msgs[node]['msg_type'] = MSG_TYPE_PREPARE
                 node_msgs[node]['ops'] = []
             node_msgs[node]['ops'].append((op_type, key, value))
 
-        if msg['reset'] == 1:
-            node_msgs = dict([(p, dict(msg, msg_type=MSG_TYPE_PREPARE, reset=1, ops=[])) for p in self.participants])
+        if req_msg['reset'] == 1:
+            node_msgs = dict([(p, dict(req_msg, msg_type=MSG_TYPE_PREPARE, reset=1, ops=[])) for p in self.participants])
 
         participant_cnt = len(node_msgs)
-        for msg in node_msgs.values():
-            msg['participant_cnt'] = participant_cnt
+        for node_msg in node_msgs.values():
+            node_msg['participant_cnt'] = participant_cnt
 
         self.instances[txn_id] = dict(participants=node_msgs.keys(), result=[],
-                                            cl_txn_id=msg['txn_id'],
+                                            cl_txn_id=req_msg['txn_id'],
                                             votes=[], commit_acks=0, client=addr, status=None, lock=threading.Lock())
         for node, node_msg in node_msgs.items():
             self.send(node_msg, node)
@@ -161,9 +160,10 @@ class Coordinator(threading.Thread):
             if len(inst['participants']) == inst['commit_acks']:
                 if inst['status'] == None: # this was an early commit
                     inst['status'] = msg['status']
-                ok_msg = dict(msg, msg_type=MSG_TYPE_RES, status=inst['status'],
+                res_msg = dict(msg, msg_type=MSG_TYPE_RES, status=inst['status'],
+                        txn_id=inst['cl_txn_id'],
                         ops=inst['result'], participants=len(inst['participants']))
-                self.send(ok_msg, inst['client'])
+                self.send(res_msg, inst['client'])
                 del self.instances[msg['txn_id']]
 
 
