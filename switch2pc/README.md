@@ -11,4 +11,4 @@ Prepare dependencies:
 
 Run some transactions in mininet:
 
-    p4app run .
+    p4app run twopc.p4app
