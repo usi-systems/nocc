@@ -89,6 +89,27 @@ assert res['txn_id'] == txn_id
 participant_sock.sendto(parser.dumps(vote_msg), (DST_ADDR, 9000)) # send third vote
 assert noResponseReceived(participant_sock), "should not send response after receiving third vote"
 
+#
+# Multiple ABORT votes should only trigger a single COMMIT(ABORT) message
+#
+txn_id += 1
+prep_msg = dict(msg_type=MSG_TYPE_PREPARE, status=STATUS_OK, txn_id=txn_id, participant_cnt=2)
+coordinator_sock.sendto(parser.dumps(prep_msg), (DST_ADDR, 8000))
+
+vote_msg = dict(msg_type=MSG_TYPE_VOTE, status=STATUS_ABORT, txn_id=txn_id, participant_cnt=2)
+participant_sock.sendto(parser.dumps(vote_msg), (DST_ADDR, 9000)) # send first abort
+
+data, addr = participant_sock.recvfrom(TXN_MSG_MAX_SIZE)
+res = parser.loads(data)
+assert res['msg_type'] == MSG_TYPE_COMMIT
+assert res['status'] == STATUS_ABORT
+assert res['txn_id'] == txn_id
+
+vote_no_msg = dict(msg_type=MSG_TYPE_VOTE, status=STATUS_ABORT, txn_id=txn_id, participant_cnt=2)
+participant_sock.sendto(parser.dumps(vote_no_msg), (DST_ADDR, 9000)) # send second abort
+
+assert noResponseReceived(participant_sock), "should not send two commit(abort) messages"
+
 
 #
 # Second prepare message should not reset state

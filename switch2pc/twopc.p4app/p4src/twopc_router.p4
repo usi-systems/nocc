@@ -36,6 +36,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     register<bit<8>>(MAX_TXN_REGISTERS) prepare_cnt_register;
     register<bit<8>>(MAX_TXN_REGISTERS) commit_cnt_register;
     register<bit<48>>(MAX_TXN_REGISTERS) start_ts_register;
+    register<bit<1>>(MAX_TXN_REGISTERS) abort_sent_register;
     action _drop() {
         mark_to_drop();
     }
@@ -132,7 +133,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
                 }
               }
               else if (hdr.twopc.status == STATUS_ABORT) {
-                early_commit.apply();
+                bit<1> abort_sent;
+                abort_sent_register.read(abort_sent, txn_idx);
+                if (abort_sent == 0) { // abort wasn't already sent
+                    abort_sent_register.write(txn_idx, 1);
+                    early_commit.apply();
+                }
               }
             }
           }
