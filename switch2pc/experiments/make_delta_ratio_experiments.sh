@@ -15,11 +15,12 @@ mkdir -p $DONE_DIR $TORUN_DIR $ERROR_DIR
 for latency_ms in 0 2 5 10 25 50 75 100 125 150
 #for latency_ms in 0
 do
-    for nthreads in 4
+    for router in forward twopc
     do
+        nthreads=4
         duration=120
-        json_file=$(./gen_p4app_manifest.py -m p4app_template.json -o $TORUN_DIR \
-            latency=$latency_ms duration=$duration threads=$nthreads)
+        json_file=$(./gen_p4app_manifest.py -m p4app_"$router"_template.json -o $TORUN_DIR \
+            latency=$latency_ms duration=$duration threads=$nthreads router=$router)
         echo $json_file
 
         exp_dir=$(dirname $json_file)

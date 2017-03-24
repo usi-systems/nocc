@@ -1,5 +1,5 @@
 {
-  "program": "p4src/twopc_router.p4",
+  "program": "p4src/forward_router.p4",
   "language": "p4-16",
   "targets": {
     "default": {
@@ -7,22 +7,22 @@
       "links": [["h1", "s1"], ["h2", "s1"], ["h3", "s1"], ["h99", "s1"]],
       "hosts": {
         "h99": {
-            "cmd": "./load_generator.py -c %clients% -d %duration% -l /tmp/p4app_logs/client.log h1:9000",
+            "cmd": "./load_generator.py -c %clients% -d %duration% -l %log_dir%/client.log h1:9000",
             "wait": true
         },
         "h1": {
-            "cmd": "./coordinator.py -p 9000 -t %threads% h2:8000 h3:8000",
+            "cmd": "./coordinator.py -p 9000 -l %log_dir%/coordinator.log -t %threads% h2:8000 h3:8000",
             "startup_sleep": 0.1,
             "latency": "%latency%ms",
             "wait": false
         },
         "h2": {
-            "cmd": "./participant.py -p 8000 -t %threads%",
+            "cmd": "./participant.py -p 8000 -l %log_dir%/p1.log -t %threads%",
             "startup_sleep": 0.1,
             "wait": false
         },
         "h3": {
-            "cmd": "./participant.py -p 8000 -t %threads%",
+            "cmd": "./participant.py -p 8000 -l %log_dir%/p2.log -t %threads%",
             "startup_sleep": 0.1,
             "wait": false
         }

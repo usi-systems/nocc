@@ -50,16 +50,16 @@ def getClientStats(filename, start=None, end=None):
             if e['req']['cl_id'] not in clients:
                 clients[e['req']['cl_id']] = dict(reqs={})
             reqs = clients[e['req']['cl_id']]['reqs']
-            if e['req']['req_id'] not in reqs:
-                reqs[e['req']['req_id']] = e['time']
+            if e['req']['txn_id'] not in reqs:
+                reqs[e['req']['txn_id']] = e['time']
         elif 'res' in e:
             if e['res']['cl_id'] not in clients: return
             reqs = clients[e['res']['cl_id']]['reqs']
             if 'from_switch' not in e['res']: e['res']['from_switch'] = False
 
-            if e['res']['req_id'] in reqs:
-                req_rtts.append(e['time'] - reqs[e['res']['req_id']])
-                del reqs[e['res']['req_id']]
+            if e['res']['txn_id'] in reqs:
+                req_rtts.append(e['time'] - reqs[e['res']['txn_id']])
+                del reqs[e['res']['txn_id']]
 
     parseLog(clientHook, filename)
     st['req_cnt'] = len(req_rtts)
@@ -97,7 +97,7 @@ def getExperimentStats(experiment_dir):
     summary['total_duration'] = max(end_times) - min(start_times)
     summary['duration'] = end_cutoff - start_cutoff
     summary['req_cnt'] = sum([st['req_cnt'] for st in cl_stats])
-    summary['req_tput'] = summary['req_cnt'] / summary['duration']
+    summary['req_rate'] = summary['req_cnt'] / summary['duration']
     summary['req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
 
     conf = manifest['targets']['default']
