@@ -30,7 +30,7 @@
 
     "default": {
       "use": "multiswitch",
-      "links": [["h1", "s1", 5], ["h2", "s1"], ["h3", "s1"], ["h99", "s1"]],
+      "links": [["h1", "s1"], ["h2", "s1"], ["h3", "s1"], ["h99", "s1"]],
       "hosts": {
         "h99": {
             "cmd": "./load_generator.py -c 4 -d 30 -l /tmp/p4app_logs/client.log h1:9000",
@@ -39,6 +39,7 @@
         "h1": {
             "cmd": "./coordinator.py -p 9000 -t 4 h2:8000 h3:8000",
             "startup_sleep": 0.1,
+            "latency": "%latency%ms",
             "wait": false
         },
         "h2": {
@@ -56,6 +57,9 @@
           "s1": {
               "entries": "commands.txt"
           }
+      },
+      "parameters": {
+          "latency": 5
       },
       "bmv2_log": true,
       "pcap_dump": true,

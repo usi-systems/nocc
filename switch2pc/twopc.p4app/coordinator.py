@@ -35,6 +35,8 @@ class Coordinator(threading.Thread):
         self.lock = threading.Lock()
         self.last_txn_id = 0
 
+        self.error = False
+
     def port(self):
         return self.addr()[1]
 
@@ -49,6 +51,13 @@ class Coordinator(threading.Thread):
         pass
 
     def run(self):
+        try:
+            self._run()
+        except:
+            self.error = True
+            raise
+
+    def _run(self):
         if self.thread_count > 1:
             self.msg_handlers = [threading.Thread(target=self._msgHandler) for _ in xrange(self.thread_count)]
             for t in self.msg_handlers: t.start()
@@ -83,11 +92,15 @@ class Coordinator(threading.Thread):
 
 
     def _msgHandler(self):
-        while True:
-            r = self.msg_queue.get()
-            if r == None: break
-            data, addr = r
-            self._handleMsg(data, addr)
+        try:
+            while True:
+                r = self.msg_queue.get()
+                if r == None: break
+                data, addr = r
+                self._handleMsg(data, addr)
+        except:
+            self.error = True
+            raise
 
     def _handleMsg(self, data, addr):
             msg = self.parser.loads(data)
@@ -164,6 +177,7 @@ class Coordinator(threading.Thread):
                         txn_id=inst['cl_txn_id'],
                         ops=inst['result'], participants=len(inst['participants']))
                 self.send(res_msg, inst['client'])
+                print 'committed', msg['txn_id']
                 del self.instances[msg['txn_id']]
 
 
@@ -189,3 +203,4 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
 
     co.run()
+    if co.error: sys.exit(1)

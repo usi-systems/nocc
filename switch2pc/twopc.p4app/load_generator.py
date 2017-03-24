@@ -21,9 +21,17 @@ class LoadClient(Client, threading.Thread):
         Client.__init__(self, server_addr=server_addr, cl_id=cl_id, logger=logger)
         self.txn_cnt = txn_cnt
         self.duration = duration
+        self.error = False
 
 
     def run(self):
+        try:
+            self._run()
+        except:
+            self.error = True
+            raise
+
+    def _run(self):
         keys = range(1, 1001)
         max_keys = 10
         if max_keys > len(keys): max_keys = len(keys)
@@ -84,3 +92,7 @@ if __name__ == '__main__':
         for c in clients: c.join()
 
     logger.close()
+
+    errors = [1 for c in clients if c.error]
+    rc = len(errors)
+    sys.exit(rc)
