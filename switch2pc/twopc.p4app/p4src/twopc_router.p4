@@ -105,7 +105,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
 
           if (hdr.twopc.isValid()) {
             if (hdr.twopc.msg_type == MSG_TYPE_PREPARE) {
-              bit<32> txn_idx = hdr.twopc.txn_id % 65536;
+              bit<32> txn_idx = hdr.twopc.txn_id % MAX_TXN_REGISTERS;
               bit<48> start_ts;
               start_ts_register.read(start_ts, txn_idx);
 
@@ -117,7 +117,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
               }
             }
             else if (hdr.twopc.msg_type == MSG_TYPE_VOTE) {
-              bit<32> txn_idx = hdr.twopc.txn_id % 65536;
+              bit<32> txn_idx = hdr.twopc.txn_id % MAX_TXN_REGISTERS;
 
               if (hdr.twopc.status == STATUS_OK) {
                 bit<8> participant_cnt;
