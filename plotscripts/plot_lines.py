@@ -18,6 +18,10 @@ matplotlib.rcParams['pdf.use14corefonts'] = True
 matplotlib.rcParams['text.usetex'] = True
 #plt.rc('font',family='Times New Roman')
 
+def formatLabel(l):
+    if matplotlib.rcParams['text.usetex']:
+        return l.replace('_', '\\_')
+    return l
 
 #plt.style.use('ggplot')
 #matplotlib.rcParams.update({'font.size': 16})
@@ -104,7 +108,7 @@ def plot_bar(data, conf=None, title=None, ylabel=None, label_order=None, show_er
         plot_handles.append(rects)
         i += 1
 
-    if ylabel: ax.set_ylabel(ylabel)
+    if ylabel: ax.set_ylabel(formatLabel(ylabel))
     if title: ax.set_title(title)
     ax.set_xticks(ind + width)
 
@@ -194,8 +198,8 @@ def plot_lines(data, xlabel=None, xlim=None, xtick=None, ylabel=None, ylim=None,
                 linestyle=label_style_hist[label]['line'], marker=label_style_hist[label]['marker'])
 
     if not title is None: ax.set_title(title)
-    if not xlabel is None: ax.set_xlabel(xlabel)
-    if not ylabel is None: ax.set_ylabel(ylabel)
+    if not xlabel is None: ax.set_xlabel(formatLabel(xlabel))
+    if not ylabel is None: ax.set_ylabel(formatLabel(ylabel))
 
     y1, y2, x1, x2 = min(all_y), max(all_y), min(all_x), max(all_x)
     if xlim: ax.set_xlim(xlim)
