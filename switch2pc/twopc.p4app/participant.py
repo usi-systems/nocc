@@ -12,6 +12,7 @@ from Queue import Queue
 from minitxn import *
 from minitxn import MiniTxnParser
 from minitxn import writeSet, readSet, compareSet, valueSet
+from logger import Logger
 
 def log(*args): sys.stderr.write(' '.join(map(str, args)))
 
@@ -23,12 +24,15 @@ class FakeLock:
 
 class Participant(threading.Thread):
 
-    def __init__(self, bind_addr=('', 8000), thread_count=1):
+    def __init__(self, bind_addr=('', 8000), thread_count=1, logger=None):
         threading.Thread.__init__(self)
         self.thread_count = thread_count
         self.msg_queue = Queue()
         self.msg_handlers = []
         self.parser = MiniTxnParser()
+        self.logger = logger
+
+        self.error = False
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(bind_addr)
@@ -48,6 +52,13 @@ class Participant(threading.Thread):
         pass
 
     def run(self):
+        try:
+            self._run()
+        except:
+            self.error = True
+            raise
+
+    def _run(self):
         if self.thread_count > 1:
             self.msg_handlers = [threading.Thread(target=self._msgHandler) for _ in xrange(self.thread_count)]
             for t in self.msg_handlers: t.start()
@@ -79,14 +90,19 @@ class Participant(threading.Thread):
 
 
     def _msgHandler(self):
-        while True:
-            r = self.msg_queue.get()
-            if r == None: break
-            data, addr = r
-            self._handleMsg(data, addr)
+        try:
+            while True:
+                r = self.msg_queue.get()
+                if r == None: break
+                data, addr = r
+                self._handleMsg(data, addr)
+        except:
+            self.error = True
+            raise
 
     def _handleMsg(self, data, addr):
             msg = self.parser.loads(data)
+            if self.logger: self.logger.log(recv=msg)
             if msg['msg_type'] == MSG_TYPE_PREPARE:
                 self._handlePrepare(msg, addr)
             elif msg['msg_type'] == MSG_TYPE_COMMIT:
@@ -149,6 +165,9 @@ class Participant(threading.Thread):
             status = STATUS_OK
 
         inst['addr'] = addr
+        if msg['txn_id'] in self.instances: # a COMMIT may have arrived out-of-order
+            inst.update(self.instances[msg['txn_id']])
+
         self.instances[msg['txn_id']] = inst
 
         if msg['reset'] == 1:
@@ -157,10 +176,15 @@ class Participant(threading.Thread):
         res = dict(msg, msg_type=MSG_TYPE_VOTE, status=status, ops=result, from_switch=0)
         self.send(res, addr)
 
+        if 'out_of_order_commit' in inst:
+            self._handleCommit(inst['out_of_order_commit'], addr)
+
 
     def _handleCommit(self, msg, addr):
 
-        if msg['txn_id'] not in self.instances: return
+        if msg['txn_id'] not in self.instances:
+            self.instances[msg['txn_id']] = dict(out_of_order_commit=msg)
+            return
 
         inst = self.instances[msg['txn_id']]
 
@@ -189,6 +213,7 @@ class Participant(threading.Thread):
 
     def send(self, msg, addr):
         self.sock.sendto(self.parser.dumps(msg), addr)
+        if self.logger: self.logger.log(sent=msg)
 
 
 
@@ -196,13 +221,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--port", type=int, help="port to bind on", required=True)
     parser.add_argument("-t", "--threads", type=int, help="number of threads", default=2)
+    parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     parser.add_argument("--verbosity", "-v", type=int, help="set verbosity level", default=0, required=False)
     args = parser.parse_args()
 
-    p = Participant(bind_addr=('', args.port), thread_count=args.threads)
+    logger = Logger(args.log) if args.log else None
+
+    p = Participant(bind_addr=('', args.port), thread_count=args.threads, logger=logger)
     def signal_handler(signal, frame):
         p.stop()
-        sys.exit(0)
+        if logger: logger.close()
+        rc = 1 if p.error else 0
+        sys.exit(rc)
     signal.signal(signal.SIGINT, signal_handler)
 
     p.run()

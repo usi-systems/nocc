@@ -91,7 +91,7 @@ if __name__ == '__main__':
         for c in clients: c.start()
         for c in clients: c.join()
 
-    logger.close()
+    if logger: logger.close()
 
     errors = [1 for c in clients if c.error]
     rc = len(errors)

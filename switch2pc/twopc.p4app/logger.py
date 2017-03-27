@@ -8,6 +8,7 @@ class Logger:
     def __init__(self, filename, stdout=False, append=False):
         mode = os.O_CREAT | os.O_WRONLY
         if append: mode = mode | os.O_APPEND
+        else: mode = mode | os.O_TRUNC
         self.logfile = os.fdopen(os.open(filename, mode, 0666), 'a' if append else 'w')
         self.stdout = stdout
         self.last_log = 0

@@ -13,12 +13,13 @@ from uhashring import HashRing
 from minitxn import *
 from minitxn import MiniTxnParser
 from minitxn import writeSet, readSet, compareSet, valueSet
+from logger import Logger
 
 def log(*args): sys.stderr.write(' '.join(map(str, args)))
 
 class Coordinator(threading.Thread):
 
-    def __init__(self, bind_addr=('', 9000), thread_count=2, participants=[]):
+    def __init__(self, bind_addr=('', 9000), thread_count=2, participants=[], logger=None):
         threading.Thread.__init__(self)
         self.thread_count = thread_count
         self.msg_queue = Queue()
@@ -36,6 +37,7 @@ class Coordinator(threading.Thread):
         self.last_txn_id = 0
 
         self.error = False
+        self.logger = logger
 
     def port(self):
         return self.addr()[1]
@@ -104,6 +106,7 @@ class Coordinator(threading.Thread):
 
     def _handleMsg(self, data, addr):
             msg = self.parser.loads(data)
+            if self.logger: self.logger.log(recv=msg)
             if msg['msg_type'] == MSG_TYPE_REQ:
                 self._handleNewTxn(msg, addr)
             elif msg['msg_type'] == MSG_TYPE_VOTE:
@@ -142,7 +145,10 @@ class Coordinator(threading.Thread):
 
 
     def _handleVote(self, msg, addr):
-        inst = self.instances[msg['txn_id']]
+        with self.lock:
+            if msg['txn_id'] not in self.instances: return
+            inst = self.instances[msg['txn_id']]
+
         with inst['lock']:
             inst['votes'].append(msg['status'] == STATUS_OK)
             inst['result'] += msg['ops']
@@ -178,12 +184,14 @@ class Coordinator(threading.Thread):
                         ops=inst['result'], participants=len(inst['participants']))
                 self.send(res_msg, inst['client'])
                 print 'committed', msg['txn_id']
-                del self.instances[msg['txn_id']]
+                with self.lock:
+                    del self.instances[msg['txn_id']]
 
 
 
     def send(self, msg, addr):
         self.sock.sendto(self.parser.dumps(msg), addr)
+        if self.logger: self.logger.log(sent=msg)
 
 
 
@@ -192,15 +200,19 @@ if __name__ == '__main__':
     parser.add_argument("--verbosity", "-v", type=int, help="set verbosity level", default=0, required=False)
     parser.add_argument("-p", "--port", type=int, help="port to bind on", required=True)
     parser.add_argument("-t", "--threads", type=int, help="number of threads", default=2)
+    parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
     parser.add_argument("participant", type=lambda p: p.split(':'), nargs='+')
     args = parser.parse_args()
 
+    logger = Logger(args.log) if args.log else None
+
     participants = map(lambda (h, p): (h, int(p)), args.participant)
-    co = Coordinator(bind_addr=('', args.port), participants=participants, thread_count=args.threads)
+    co = Coordinator(bind_addr=('', args.port), participants=participants, thread_count=args.threads, logger=logger)
     def signal_handler(signal, frame):
         co.stop()
-        sys.exit(0)
+        if logger: logger.close()
+        rc = 1 if co.error else 0
+        sys.exit(rc)
     signal.signal(signal.SIGINT, signal_handler)
 
     co.run()
-    if co.error: sys.exit(1)
