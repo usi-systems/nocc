@@ -182,22 +182,23 @@ class Participant(threading.Thread):
 
     def _handleCommit(self, msg, addr):
 
-        if msg['txn_id'] not in self.instances:
-            self.instances[msg['txn_id']] = dict(out_of_order_commit=msg)
-            return
-
-        inst = self.instances[msg['txn_id']]
-
-        if msg['status'] == STATUS_OK:
-            for _, key, value in inst['writes']:
-                self.store[key]['value'] = value.rstrip('\0')
-
         with self.store_lock:
+            if msg['txn_id'] not in self.instances:
+                self.instances[msg['txn_id']] = dict(out_of_order_commit=msg)
+                return
+
+            inst = self.instances[msg['txn_id']]
+
+            if msg['status'] == STATUS_OK:
+                for _, key, value in inst['writes']:
+                    self.store[key]['value'] = value.rstrip('\0')
+
             for key in inst['rlocks']: self.store[key]['rlock'] -= 1
             for key in inst['wlocks']: self.store[key]['wlock'] = 0
 
+            del self.instances[msg['txn_id']]
+
         coordinator_addr = inst['addr']
-        del self.instances[msg['txn_id']]
 
         res = dict(msg, msg_type=MSG_TYPE_COMMITTED, ops=[], from_switch=0)
         self.send(res, coordinator_addr)
