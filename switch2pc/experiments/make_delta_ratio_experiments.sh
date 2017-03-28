@@ -12,20 +12,22 @@ TORUN_DIR="$EXPERIMENTS_DIR/torun"
 ERROR_DIR="$EXPERIMENTS_DIR/error"
 mkdir -p $DONE_DIR $TORUN_DIR $ERROR_DIR
 
-for latency_ms in 0 2 5 10 25 50 75 100 125 150
-#for latency_ms in 0
+nthreads=4
+duration=90
+
+for nclients in 1 2 4 8
 do
-    for router in forward twopc
+    for latency_ms in 0 4 8 16 32 64 128 160
     do
-        nthreads=4
-        duration=120
-        json_file=$(./gen_p4app_manifest.py -m p4app_"$router"_template.json -o $TORUN_DIR \
-            latency=$latency_ms duration=$duration threads=$nthreads router=$router)
-        echo $json_file
+        for router in forward twopc
+        do
+            json_file=$(./gen_p4app_manifest.py -m p4app_"$router"_template.json -o $TORUN_DIR \
+                latency=$latency_ms duration=$duration threads=$nthreads clients=$nclients router=$router)
+            echo $json_file
 
-        exp_dir=$(dirname $json_file)
+            exp_dir=$(dirname $json_file)
 
-        cat > $exp_dir/run.sh <<EOF 
+            cat > $exp_dir/run.sh <<EOF
 #!/bin/bash
 cd "\$(dirname "\$0")"
 cp "$(basename $json_file)" "$HOME/src/gotthard/switch2pc/twopc.p4app/experiment_p4app.json"
@@ -37,6 +39,7 @@ rm "$HOME/src/gotthard/switch2pc/twopc.p4app/experiment_p4app.json"
 exit \$rc
 EOF
 
-        chmod +x $exp_dir/run.sh
+            chmod +x $exp_dir/run.sh
+        done
     done
 done

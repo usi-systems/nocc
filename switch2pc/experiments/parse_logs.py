@@ -38,7 +38,7 @@ def parseLog(func, filename):
 
 
 def getClientStats(filename, start=None, end=None):
-    st = dict(from_switch=0)
+    st = dict(from_switch=0, abrt_cnt=0)
     req_rtts = [] # list of the RTT for all requests
     txns = []    # stats per TXN (includes TXNs from all clients)
     clients = {} # per-client request and TXN state
@@ -47,23 +47,27 @@ def getClientStats(filename, start=None, end=None):
         if start is not None and e['time'] < start: return
         if end is not None and e['time'] > end: return
         if 'req' in e:
-            if e['req']['cl_id'] not in clients:
-                clients[e['req']['cl_id']] = dict(reqs={})
-            reqs = clients[e['req']['cl_id']]['reqs']
-            if e['req']['txn_id'] not in reqs:
-                reqs[e['req']['txn_id']] = e['time']
+            req = e['req']
+            if req['cl_id'] not in clients:
+                clients[req['cl_id']] = dict(reqs={})
+            reqs = clients[req['cl_id']]['reqs']
+            if req['txn_id'] not in reqs:
+                reqs[req['txn_id']] = e['time']
         elif 'res' in e:
-            if e['res']['cl_id'] not in clients: return
-            reqs = clients[e['res']['cl_id']]['reqs']
-            if 'from_switch' not in e['res']: e['res']['from_switch'] = False
+            res = e['res']
+            if res['cl_id'] not in clients: return
+            reqs = clients[res['cl_id']]['reqs']
+            if 'from_switch' not in res: res['from_switch'] = False
 
-            if e['res']['txn_id'] in reqs:
-                req_rtts.append(e['time'] - reqs[e['res']['txn_id']])
-                del reqs[e['res']['txn_id']]
+            if res['status'] == STATUS_ABORT: st['abrt_cnt'] += 1
+
+            if res['txn_id'] in reqs:
+                req_rtts.append(e['time'] - reqs[res['txn_id']])
+                del reqs[res['txn_id']]
 
     parseLog(clientHook, filename)
     st['req_cnt'] = len(req_rtts)
-    st['avg_req_rtt'] = np.mean(req_rtts)
+    st['req_rtt'] = np.mean(req_rtts)
     return st
 
 
@@ -77,7 +81,7 @@ def getExperimentStats(experiment_dir):
 
     log_filenames = filter(path.isfile, [path.join(log_dir, f) for f in listdir(log_dir) if f.endswith('.log')])
 
-    client_log_filenames = [f for f in log_filenames if 'client' in f]
+    client_log_filenames = [f for f in log_filenames if 'client' in os.path.basename(f)]
     if len(client_log_filenames) < 1: raise Exception("No client logs found in: %s"%log_dir)
     client_names = [path.basename(f).split('.log')[0] for f in client_log_filenames]
 
@@ -98,13 +102,15 @@ def getExperimentStats(experiment_dir):
     summary['duration'] = end_cutoff - start_cutoff
     summary['req_cnt'] = sum([st['req_cnt'] for st in cl_stats])
     summary['req_rate'] = summary['req_cnt'] / summary['duration']
-    summary['req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
+    summary['req_rtt'] = np.mean([st['req_rtt'] for st in cl_stats])
+    summary['abrt_cnt'] = sum([st['abrt_cnt'] for st in cl_stats])
 
     conf = manifest['targets']['default']
     params = conf['parameters'] if 'parameters' in conf else dict()
-    experiment_params = dict(params,
-            program=manifest['program'].split('/')[-1].split('.p4')[0]
-            )
+    experiment_params = dict(params)
+
+    if 'router' in params:
+        experiment_params['router'] = params['router'].replace('_router', '')
 
 
     return dict(summary, **experiment_params)

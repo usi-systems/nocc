@@ -3,8 +3,9 @@
   "language": "p4-16",
   "targets": {
     "default": {
+      "auto-control-plane": true,
       "use": "multiswitch",
-      "links": [["h1", "s1"], ["h2", "s1"], ["h3", "s1"], ["h99", "s1"]],
+      "links": [["h1", "s1", "%latency%ms"], ["h2", "s1"], ["h3", "s1"], ["h1", "s2"], ["h99", "s2"]],
       "hosts": {
         "h99": {
             "cmd": "./load_generator.py -c %clients% -d %duration% -l %log_dir%/client.log h1:9000",
@@ -13,7 +14,6 @@
         "h1": {
             "cmd": "./coordinator.py -p 9000 -l %log_dir%/coordinator.log -t %threads% h2:8000 h3:8000",
             "startup_sleep": 0.1,
-            "latency": "%latency%ms",
             "wait": false
         },
         "h2": {
@@ -28,9 +28,6 @@
         }
       },
       "switches": {
-          "s1": {
-              "entries": "commands.txt"
-          }
       },
       "parameters": {
           "latency": 5,
