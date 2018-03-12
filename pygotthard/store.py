@@ -7,6 +7,7 @@ import errno
 from Queue import Queue
 from threading import Thread, Lock
 from gotthard import *
+import psutil
 
 class RecvQueue:
     clients = {}
@@ -104,7 +105,12 @@ class StoreServer:
             txn_ops = self.recvq.pushpop(req)
             if txn_ops is None:
                 return
-            status, ops = self.store.applyTxn(txn_ops)
+            if len(txn_ops) == 1 and txn_ops[0].type == TXN_CPU_PCT:
+                #print psutil.cpu_percent(percpu=True)
+                val = struct.pack('!f', psutil.cpu_percent())
+                status, ops = STATUS_OK, [TxnOp(t=TXN_CPU_PCT, key=0, value=val)]
+            else:
+                status, ops = self.store.applyTxn(txn_ops)
 
         self.sendResp(req, status, ops, addr)
 

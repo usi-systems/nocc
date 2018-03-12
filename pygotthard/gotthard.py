@@ -23,9 +23,10 @@ TXN_READ    = 1 # request: I would like to get the value of this obj
 TXN_WRITE   = 2 # request: write this value to the object
 TXN_VALUE   = 3 # fact: this is what (I think) the value is
 TXN_UPDATED = 4 # response: the object was just updated to this value
+TXN_CPU_PCT = 5 # request/response for CPU usage since last measurement
 
-
-txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U'}
+txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE: 'W', TXN_UPDATED: 'U', TXN_CPU_PCT: 'CPU'}
+OP_TYPES = txn_op_type_to_string.keys()
 
 MIN_INTER_MSG_SEND_WAIT = 0.000050
 MAX_INTER_MSG_SEND_WAIT = 0.000400
@@ -86,7 +87,7 @@ class TxnOp:
         if binstr is not None:
             self.unpack(binstr)
         else:
-            assert(t in [TXN_NOP, TXN_VALUE, TXN_READ, TXN_WRITE, TXN_UPDATED])
+            assert(t in OP_TYPES)
             assert(type(key) is int)
             assert(type(value) is str)
             self.type, self.key, self.value = t, key, value.ljust(VALUE_SIZE, '\0')

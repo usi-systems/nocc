@@ -168,6 +168,14 @@ class EngineClient(Thread, GotthardClient):
                     sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
             self.elapsed = time.time() - start_time
 
+def reqCpuUsage(store_addr=None, logger=None, resend_timeout=None):
+    with GotthardClient(store_addr=store_addr, logger=logger, resend_timeout=resend_timeout) as gc:
+        res = gc.req([TxnOp(t=TXN_CPU_PCT, key=0, value='a')])
+        assert res.status == STATUS_OK
+        assert len(res.ops) == 1
+        pct, = struct.unpack('!f', res.ops[0].value[:4])
+        return pct
+
 
 
 if __name__ == '__main__':
@@ -233,6 +241,10 @@ if __name__ == '__main__':
         if not args.id is None: cl.cl_id = args.id + n
         clients.append(cl)
 
+
+    # reset the cpu measurement meter at the store
+    reqCpuUsage(store_addr=store_addr, logger=logger, resend_timeout=args.resend_timeout)
+
     if len(clients) == 1:
         clients[0].run()
     else:
@@ -245,6 +257,7 @@ if __name__ == '__main__':
             num_clients = args.num_clients,
             duration = args.duration,
             pdf = pdf,
+            store_cpu_pct = reqCpuUsage(store_addr=store_addr, logger=logger, resend_timeout=args.resend_timeout),
             zipf = args.zipf,
             pop_size = args.keys,
             write_ratio = args.write_ratio,
@@ -262,6 +275,7 @@ if __name__ == '__main__':
     print "txn_cnts:", results['txn_counts'], "(%d)"%total_txns
     elapsed = sum(results['elapseds'])/len(results['elapseds'])
     print "rate:", total_txns/elapsed, "TXN/s"
+    print 'store_cpu_pct:', results['store_cpu_pct']
 
     if args.results:
         with open(args.results, 'w') as f:
