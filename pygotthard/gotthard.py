@@ -8,7 +8,7 @@ import threading
 from base64 import b64encode
 import pickle
 
-GOTTHARD_MAX_OP = 10
+GOTTHARD_MAX_OP = 7
 
 TYPE_REQ = 0
 TYPE_RES = 1
@@ -30,7 +30,7 @@ txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE:
 MIN_INTER_MSG_SEND_WAIT = 0.000050
 MAX_INTER_MSG_SEND_WAIT = 0.000400
 
-VALUE_SIZE = 128
+VALUE_SIZE = 16
 NULL_VALUE = '\0'*VALUE_SIZE
 
 status_to_string = ['OK', 'ABORT', 'OPTIMISTIC_ABORT', 'STATUS_BADREQ']
