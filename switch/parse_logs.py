@@ -34,7 +34,7 @@ def parseLog(func, filename):
             event = json.loads(line)
             func(event)
 
-default_st = dict(store_abort_cnt=0, switch_abort_cnt=0, opti_abort_cnt=0,
+default_st = dict(store_abort_cnt=0, switch_abort_cnt=0,
                     sent_count=0, recv_count=0,
                     start=None, end=None)
 
@@ -64,12 +64,10 @@ def getClientStats(filename, start=None, end=None):
             if 'from_switch' not in e['res']: e['res']['from_switch'] = False
             st['recv_count'] += 1
 
-            if e['res']['status'] == 'ABORT' and e['res']['from_switch']:
+            if e['res']['status'] in ['ABORT', 'OPTIMISTIC_ABORT'] and e['res']['from_switch']:
                 st['switch_abort_cnt'] += 1
             elif e['res']['status'] == 'ABORT':
                 st['store_abort_cnt'] += 1
-            elif e['res']['status'] == 'OPTIMISTIC_ABORT':
-                st['opti_abort_cnt'] += 1
 
             if e['res']['status'] in ['ABORT', 'OPTIMISTIC_ABORT']: txn['abrt_cnt'] += 1
 
@@ -209,9 +207,8 @@ def getExperimentStats(experiment_dir):
     summary['duration'] = end_cutoff - start_cutoff
 
     summary['store_abort_cnt'] = sum([st['store_abort_cnt'] for st in cl_stats]) # aborted by store
-    summary['switch_abort_cnt'] = sum([st['switch_abort_cnt'] for st in cl_stats])  # normally aborted by switch
-    summary['opti_abort_cnt'] = sum([st['opti_abort_cnt'] for st in cl_stats]) # optimistically aborted by switch
-    summary['total_abort_cnt'] = summary['store_abort_cnt'] + summary['switch_abort_cnt'] + summary['opti_abort_cnt']
+    summary['switch_abort_cnt'] = sum([st['switch_abort_cnt'] for st in cl_stats])  # aborted by switch
+    summary['total_abort_cnt'] = summary['store_abort_cnt'] + summary['switch_abort_cnt']
     summary['total_sent'] = sum([st['sent_count'] for st in cl_stats])
     summary['total_recv'] = sum([st['recv_count'] for st in cl_stats])
     summary['avg_req_rtt'] = np.mean([st['avg_req_rtt'] for st in cl_stats])
@@ -242,8 +239,7 @@ def getExperimentStats(experiment_dir):
 
     summary['asrt_txn_ratio'] = len(asrt_txn_latencies) / float(len(all_txn_latencies))
 
-    summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt'] + summary['opti_abort_cnt']) / summary['total_abort_cnt']
-    summary['opti_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['opti_abort_cnt']) / summary['total_abort_cnt']
+    summary['switch_abort_ratio'] = 0 if summary['total_abort_cnt'] == 0 else float(summary['switch_abort_cnt']) / summary['total_abort_cnt']
 
     if args.latencies:
         summary['all_txn_latencies'] = ','.join(map(lambda l: str(round(l, 3)), all_txn_latencies))
