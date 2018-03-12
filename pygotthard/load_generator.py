@@ -4,8 +4,10 @@ from threading import Thread
 from gotthard import *
 from random import gauss, randint, random
 from time import sleep
+import json
 import time
 import re
+from zipf import zipfWorkload
 
 R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 
@@ -26,9 +28,18 @@ class TxnEngine:
         self.key_to_symbol = {} # maps a concrete key to a symbol. e.g. 1:x, 2:y
         self.symbol_state = {} # the current value for each symbol. e.g. x=23, y=14
         self.max_count = count
-        self.count = 0      # number of successfully executed TXNs
+        self.ok_count = 0      # number of successfully executed TXNs
         self.duration = duration # optionally, the max duration in seconds
         self.current_txn = None # currently executing TXN
+        self.abort_count = 0
+        self.switch_abort_count = 0
+        self.res_count = 0 # total number of responses
+        self.switch_res_count = 0 # number of responses from switch
+        self.req_start_time = None # time the last req was sent
+        self.txn_start_time = None # time the last TXN was started
+        self.req_lats = [] # latencies of getting a response after sending a req
+        self.txn_lats = [] # latencies of successfully executing a TXN
+
 
         self.transactions = []
         for tmpl in sorted_templates: # for each TXN
@@ -73,6 +84,9 @@ class TxnEngine:
                           value=value_gen()))
 
     def uponResponse(self, res):
+        self.req_lats.append(time.time() - self.req_start_time)
+        self.req_start_time = None
+
         for op in res.ops:
             if op.type not in [TXN_VALUE, TXN_UPDATED]: continue
             if op.key not in self.key_to_symbol: continue
@@ -80,17 +94,29 @@ class TxnEngine:
             val_str = op.value.rstrip('\0')
             self.symbol_state[symbol] = int(val_str) if len(val_str) else ''
 
+
         successful = False
         if res.status == STATUS_OK:
+            self.txn_lats.append(time.time() - self.txn_start_time)
+            self.txn_start_time = None
             successful = True
-            self.count += 1
+            self.ok_count += 1
             self._chooseTxn()
+        else:
+            self.abort_count += 1
+            if res.flags.from_switch: self.switch_abort_count += 1
+
+        if res.flags.from_switch: self.switch_res_count += 1
+        self.res_count += 1
 
         return successful
 
 
     def getTxn(self):
-        return [opgen() for opgen in self.current_txn]
+        ops = [opgen() for opgen in self.current_txn]
+        if self.txn_start_time is None: self.txn_start_time = time.time()
+        if self.req_start_time is None: self.req_start_time = time.time()
+        return ops
 
     def _chooseTxn(self):
         # XXX This is really slow:
@@ -106,13 +132,15 @@ class TxnEngine:
     def getInitTxn(self):
         if self.duration is not None:
             self.end_time = time.time() + self.duration
+        if self.txn_start_time is None: self.txn_start_time = time.time()
+        if self.req_start_time is None: self.req_start_time = time.time()
         return [W(key, str(0)) for symbol,key in self.symbol_to_key.items()]
 
     def done(self):
         if self.duration is not None:
             return time.time() > self.end_time
         else:
-            return self.count > self.max_count
+            return self.ok_count == self.max_count
 
 
 class EngineClient(Thread, GotthardClient):
@@ -131,12 +159,15 @@ class EngineClient(Thread, GotthardClient):
             res = self.req(init_txn)
             assert res.status == STATUS_OK
             self.engine.uponResponse(res)
+            start_time = time.time()
             while not self.engine.done():
                 txn = self.engine.getTxn()
                 res = self.req(txn)
                 successful = self.engine.uponResponse(res)
                 if successful and self.think:
                     sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
+            self.elapsed = time.time() - start_time
+
 
 
 if __name__ == '__main__':
@@ -147,6 +178,7 @@ if __name__ == '__main__':
     parser.add_argument("--count", "-c", type=int, help="number of transactions to perform", default=None)
     parser.add_argument("--resend-timeout", "-r", type=float, help="timeout to resend request, in secs", default=None)
     parser.add_argument("--log", "-l", type=str, help="filename to write log to", default=None)
+    parser.add_argument("--results", "-s", type=str, help="filename to write result summary to", default=None)
     parser.add_argument("--id", "-i", type=int, help="assign cl_id starting from this value", default=None)
     parser.add_argument("--think", "-t", type=float, help="think time (s) between successful transactions", default=None)
     parser.add_argument("--think-var", "-v", type=float, help="variance used for generating random think time", default=None)
@@ -156,6 +188,9 @@ if __name__ == '__main__':
     parser.add_argument("--transactions", "-T", help="Transactions to execute", required=False,
             type=lambda s: map(lambda t: t.strip(), s.split('|')),
             default=['R(1)', 'A(1, RND) W(1, RND)'])
+    parser.add_argument("--zipf", "-z", type=float, help="For zipf: exponent", default=None)
+    parser.add_argument("--keys", "-k", type=int, help="For zipf: number of keys", default=10)
+    parser.add_argument("--write-ratio", type=float, help="For zipf: write ratio", default=0.2)
     args = parser.parse_args()
 
     if args.count is None and args.duration is None:
@@ -165,19 +200,29 @@ if __name__ == '__main__':
 
     logger = GotthardLogger(args.log) if args.log else None
 
-    pdf = args.pdf
-    missing_p = len(args.transactions) - len(args.pdf)
-    if missing_p > 0:
-        pdf += [(1.0-sum(pdf))/missing_p,]*missing_p
 
-    if sum(pdf) != 1.0:
-        missing = 1 - sum(pdf)
-        assert sum(pdf) + missing == 1
-        for n in xrange(len(pdf)):
-            if pdf[n] + missing < 0: continue
-            print "Warning: sum(pdf)=%f! Adding %f to pdf[%d]" % (sum(pdf), missing, n)
-            pdf[n] += missing
-            break
+    if args.zipf is not None:
+        probabilities, transactions = zipfWorkload(args.write_ratio,
+                                                    args.zipf,
+                                                    args.keys,
+                                                    ['a','b','c','d','e','f','g','h','i','j'])
+        args.transactions = transactions.split('|')
+        pdf = map(float, probabilities.split(','))
+    else:
+
+        pdf = args.pdf
+        missing_p = len(args.transactions) - len(args.pdf)
+        if missing_p > 0:
+            pdf += [(1.0-sum(pdf))/missing_p,]*missing_p
+
+        if sum(pdf) != 1.0:
+            missing = 1 - sum(pdf)
+            assert sum(pdf) + missing == 1
+            for n in xrange(len(pdf)):
+                if pdf[n] + missing < 0: continue
+                print "Warning: sum(pdf)=%f! Adding %f to pdf[%d]" % (sum(pdf), missing, n)
+                pdf[n] += missing
+                break
 
     for txn, p in zip(args.transactions, pdf):
         print "P=%s: %s" % (str(p), txn)
@@ -193,5 +238,27 @@ if __name__ == '__main__':
     else:
         for cl in clients: cl.start()
         for cl in clients: cl.join()
-    for cl in clients: print cl.engine.count
+
     if logger: logger.close()
+
+    print "txn_cnts:", [cl.engine.ok_count for cl in clients]
+    results = dict(
+            num_clients = args.num_clients,
+            duration = args.duration,
+            pdf = pdf,
+            zipf = args.zipf,
+            pop_size = args.keys,
+            write_ratio = args.write_ratio,
+            elapseds = [cl.elapsed for cl in clients],
+            txn_lats = [cl.engine.txn_lats for cl in clients],
+            req_lats = [cl.engine.req_lats for cl in clients],
+            txn_counts = [cl.engine.ok_count for cl in clients],
+            res_counts = [cl.engine.res_count for cl in clients],
+            switch_res_counts = [cl.engine.switch_res_count for cl in clients],
+            abort_counts = [cl.engine.abort_count for cl in clients],
+            switch_abort_counts = [cl.engine.switch_abort_count for cl in clients],
+            )
+
+    if args.results:
+        with open(args.results, 'w') as f:
+            json.dump(results, f)
