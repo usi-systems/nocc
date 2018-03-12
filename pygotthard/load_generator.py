@@ -241,7 +241,6 @@ if __name__ == '__main__':
 
     if logger: logger.close()
 
-    print "txn_cnts:", [cl.engine.ok_count for cl in clients]
     results = dict(
             num_clients = args.num_clients,
             duration = args.duration,
@@ -258,6 +257,11 @@ if __name__ == '__main__':
             abort_counts = [cl.engine.abort_count for cl in clients],
             switch_abort_counts = [cl.engine.switch_abort_count for cl in clients],
             )
+
+    total_txns = sum(results['txn_counts'])
+    print "txn_cnts:", results['txn_counts'], "(%d)"%total_txns
+    elapsed = sum(results['elapseds'])/len(results['elapseds'])
+    print "rate:", total_txns/elapsed, "TXN/s"
 
     if args.results:
         with open(args.results, 'w') as f:
