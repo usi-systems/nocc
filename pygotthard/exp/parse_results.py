@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 import multiprocessing
 import json
@@ -33,8 +35,8 @@ def loadResultFile(filename):
     total_switch_res = sum(results['switch_res_counts'])
     results['switch_ratio'] = total_switch_res / float(total_res)
     results['avg_txn_rate'] = total_txns / elapsed
-    results['avg_txn_lat'] = np.mean([lat for lats in results['txn_lats'] for lat in lats])
-    results['avg_req_lat'] = np.mean([lat for lats in results['req_lats'] for lat in lats])
+    results['avg_txn_lat'] = np.mean([lat for lats in results['txn_lats'] for lat in lats]) * 1000 # convert to ms
+    results['avg_req_lat'] = np.mean([lat for lats in results['req_lats'] for lat in lats]) * 1000 # convert to ms
 
     store_res_count = total_res - total_switch_res
     results['store_msgs_per_txn'] = store_res_count / float(total_txns)
@@ -64,7 +66,7 @@ else:
     results = map(loadResultFile, filenames)
 
 
-fields = ['mode', 'num_clients', 'write_ratio', 'zipf', 'duration', 'avg_txn_rate', 'switch_ratio', 'avg_txn_lat', 'avg_req_lat', 'store_msgs_per_txn']
+fields = ['mode', 'num_clients', 'write_ratio', 'zipf', 'duration', 'avg_txn_rate', 'switch_ratio', 'avg_txn_lat', 'avg_req_lat', 'store_msgs_per_txn', 'store_cpu_pct']
 
 print '\t'.join(fields)
 for row in results:

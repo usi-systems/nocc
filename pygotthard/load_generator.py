@@ -273,9 +273,11 @@ if __name__ == '__main__':
 
     total_txns = sum(results['txn_counts'])
     print "txn_cnts:", results['txn_counts'], "(%d)"%total_txns
-    elapsed = sum(results['elapseds'])/len(results['elapseds'])
+    elapsed = sum(results['elapseds'])/args.num_clients
     print "rate:", total_txns/elapsed, "TXN/s"
     print 'store_cpu_pct:', results['store_cpu_pct']
+    #import numpy as np
+    #print 'avg_req_lat:', np.mean([lat for l in results['req_lats'] for lat in l])
 
     if args.results:
         with open(args.results, 'w') as f:

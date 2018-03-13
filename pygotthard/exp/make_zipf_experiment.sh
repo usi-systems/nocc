@@ -14,9 +14,6 @@ TORUN_DIR="$EXPERIMENTS_DIR/torun"
 mkdir -p $DONE_DIR
 mkdir -p $TORUN_DIR
 
-#for num_clients in 2 3 4 5 6 7 9 10 11 12 14 16 18 20 22 24 26 28 30 32 34 36 38
-#for num_clients in 13 15 17 19 21 23 25 27 29 31 33 35 37 39 40
-#for num_clients in 13 14 15 17 19 21 23 25 27 28 29 30 31 32
 duration=180
 num_keys=10
 for num_clients in 8
