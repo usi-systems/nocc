@@ -97,9 +97,9 @@ class StoreServer:
         if self.verbosity > 1: print "=>", req
 
         if req.flags.reset:
-            if self.verbosity > 0: print "Removing all %d objects" % len(store.values)
+            if self.verbosity > 0: print "Removing all %d objects" % len(self.store.values)
             self.store.clear()
-            if self.recover_filename: recover(self.recover_filename)
+            if self.recover_filename: self.recover(self.recover_filename)
             status, ops = STATUS_OK, []
         else:
             txn_ops = self.recvq.pushpop(req)
