@@ -29,7 +29,7 @@ txn_op_type_to_string = {TXN_NOP: 'N', TXN_VALUE: 'V', TXN_READ: 'R', TXN_WRITE:
 OP_TYPES = txn_op_type_to_string.keys()
 
 MIN_INTER_MSG_SEND_WAIT = 0.000050
-MAX_INTER_MSG_SEND_WAIT = 0.000400
+MAX_INTER_MSG_SEND_WAIT = 0 # disable send wait
 
 VALUE_SIZE = 16
 NULL_VALUE = '\0'*VALUE_SIZE
