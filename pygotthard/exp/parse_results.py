@@ -33,10 +33,14 @@ def loadResultFile(filename):
     total_txns = sum(results['txn_counts'])
     total_res = sum(results['res_counts'])
     total_switch_res = sum(results['switch_res_counts'])
+    total_aborts = sum(results['abort_counts'])
+    total_switch_aborts = sum(results['switch_abort_counts'])
     results['switch_ratio'] = total_switch_res / float(total_res)
     results['avg_txn_rate'] = total_txns / elapsed
     results['avg_txn_lat'] = np.mean([lat for lats in results['txn_lats'] for lat in lats]) * 1000 # convert to ms
     results['avg_req_lat'] = np.mean([lat for lats in results['req_lats'] for lat in lats]) * 1000 # convert to ms
+    results['store_aborts'] = total_aborts - total_switch_aborts
+    results['store_aborts_per_txn'] = results['store_aborts'] / float(total_txns)
 
     store_res_count = total_res - total_switch_res
     results['store_msgs_per_txn'] = store_res_count / float(total_txns)
@@ -66,7 +70,7 @@ else:
     results = map(loadResultFile, filenames)
 
 
-fields = ['mode', 'num_clients', 'write_ratio', 'zipf', 'duration', 'avg_txn_rate', 'switch_ratio', 'avg_txn_lat', 'avg_req_lat', 'store_msgs_per_txn', 'store_cpu_pct']
+fields = ['mode', 'num_clients', 'write_ratio', 'zipf', 'duration', 'avg_txn_rate', 'switch_ratio', 'avg_txn_lat', 'avg_req_lat', 'store_msgs_per_txn', 'store_cpu_pct', 'store_aborts', 'store_aborts_per_txn']
 
 print '\t'.join(fields)
 for row in results:
