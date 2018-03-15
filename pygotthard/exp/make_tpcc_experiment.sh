@@ -1,18 +1,6 @@
 #!/bin/bash
 
-BASEDIR=$(dirname "$0")
-
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 EXPERIMENTS_DIR"
-    exit 1
-else
-    EXPERIMENTS_DIR=$1
-fi
-
-DONE_DIR="$EXPERIMENTS_DIR/done"
-TORUN_DIR="$EXPERIMENTS_DIR/torun"
-mkdir -p $DONE_DIR
-mkdir -p $TORUN_DIR
+source generic_experiment.sh
 
 duration=300
 for num_clients in 2 4 8 16 24 32 40
