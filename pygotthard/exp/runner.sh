@@ -42,12 +42,12 @@ do
         break
     fi
 
-    run_hook before
-
     experiment_dirname=$(ls -rt $TORUN_DIR | head -n1)
     if [ -z $experiment_dirname ]; then
         break
     fi
+
+    run_hook before
 
     mv "$TORUN_DIR/$experiment_dirname" "$RUNNING_DIR/"
     experiment_dir="$RUNNING_DIR/$experiment_dirname"
@@ -57,11 +57,11 @@ do
     (cd $experiment_dir && time ./run.sh > out/stdout 2> out/stderr) 2>&1 | grep real
     echo
 
-    run_hook after
-
     sleep 1
 
     mv $experiment_dir $DONE_DIR
+
+    run_hook after
 
 done
 
