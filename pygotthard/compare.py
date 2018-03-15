@@ -23,4 +23,5 @@ with GotthardClient(store_addr=(args.host, args.port)) as cl:
     assert(resp.flags.type == TYPE_RES)
     if resp.status != STATUS_OK:
         print "%d: %s" % (args.r_key, resp.op(k=args.r_key).value.rstrip('\0'))
+        if resp.flags.from_switch: print 'from_switch'
     print status_to_string[resp.status]
