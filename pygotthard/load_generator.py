@@ -168,15 +168,6 @@ class EngineClient(Thread, GotthardClient):
                     sleep(abs(gauss(self.think, think_sigma)) if self.think_var else self.think)
             self.elapsed = time.time() - start_time
 
-def reqCpuUsage(store_addr=None, logger=None, resend_timeout=None):
-    with GotthardClient(store_addr=store_addr, logger=logger, resend_timeout=resend_timeout) as gc:
-        res = gc.req([TxnOp(t=TXN_CPU_PCT, key=0, value='a')])
-        assert res.status == STATUS_OK
-        assert len(res.ops) == 1
-        pct, = struct.unpack('!f', res.ops[0].value[:4])
-        return pct
-
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

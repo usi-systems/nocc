@@ -446,6 +446,15 @@ class GotthardLogger:
         if not self.closed.isSet():
             self.close()
 
+def reqCpuUsage(store_addr=None, logger=None, resend_timeout=None):
+    with GotthardClient(store_addr=store_addr, logger=logger, resend_timeout=resend_timeout) as gc:
+        res = gc.req([TxnOp(t=TXN_CPU_PCT, key=0, value='a')])
+        assert res.status == STATUS_OK
+        assert len(res.ops) == 1
+        pct, = struct.unpack('!f', res.ops[0].value[:4])
+        return pct
+
+
 if __name__ == '__main__':
     print 'TXNHDR_SIZE', TXNHDR_SIZE
     print 'TXNOP_SIZE', TXNOP_SIZE
