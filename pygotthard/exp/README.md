@@ -61,3 +61,28 @@ Then you can plot the CDF:
 
     ~/s/cdf2.py my_experiment/done/8num_clients_0.2write_ratio_180duration/out/baseline_results.json_lats.tsv OCC my_experiment/done/8num_clients_0.2write_ratio_180duration/out/gotthard_results.json_lats.tsv NOCC
 
+
+# TPCC Experiments
+
+## Setup
+
+Load the starting tables and generate the keymap (will be stored in `/tmp/keymap.bin`).
+
+Start the store server and have it dump the values:
+
+    theo@node96:~$ sudo ip netns exec ns_eth8 ./store.py -j8 -v1 -p 1235 -d tpcc.dump
+
+Load the tables:
+
+    theo@node95:~$ sudo ip netns exec ns_eth0 /home/theo/src/tpcc/pytpcc/tpcc.py --config=baseline_tpcc.config --duration 1 --warehouses 1 --stop-on-error --clients 4 --no-exec gotthard
+
+Check that the keymap is in `/tmp/keymap.bin`.
+
+Stop the store, and start both baseline and gotthard, loading the store dump:
+
+    theo@node96:~$ sudo ip netns exec ns_eth8 ./store.py -j8 -v1 -p 1235 -r tpcc.dump
+    theo@node96:~$ sudo ip netns exec ns_eth8 ./store.py -j8 -v1 -p 1234 -r tpcc.dump
+
+## Running
+
+Use the `./make_tpcc_experiment.sh` script to generate the experiments, as done for the microbenchmarks.
