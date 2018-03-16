@@ -71,7 +71,8 @@ def loadResultFile(filename):
 
     txn_store_aborts = dict((name, txn_aborts[name]-txn_switch_aborts[name]) for name in txn_aborts)
 
-    results['payment_store_aborts_per_txn'] = txn_store_aborts['payment'] / float(txn_counts['payment'])
+    for txn in TXN_NAMES:
+        results[txn + '_store_aborts_per_txn'] = txn_store_aborts[txn] / float(txn_counts[txn])
 
     return results
 
@@ -95,6 +96,7 @@ else:
 
 fields = ['mode', 'num_clients', 'duration', 'total_rate', 'store_cpu_pct']
 fields += ['payment_store_aborts_per_txn']
+fields += ['order_status_store_aborts_per_txn']
 
 for txn in TXN_NAMES:
     fields.extend([txn + '_rate', txn + '_avg_lat'])
