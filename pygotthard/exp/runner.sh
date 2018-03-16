@@ -1,5 +1,29 @@
 #!/bin/bash
 
+# Source: https://www.unix.com/shell-programming-and-scripting/98889-display-runnning-countdown-bash-script.html
+function countdown
+{
+        SECONDS=$1
+        local START=$(date +%s)
+        local END=$((START + SECONDS))
+        local CUR=$START
+
+        while [[ $CUR -lt $END ]]
+        do
+                CUR=$(date +%s)
+                LEFT=$((END-CUR))
+
+                printf "\r%02d:%02d:%02d" \
+                        $((LEFT/3600)) $(( (LEFT/60)%60)) $((LEFT%60))
+
+                sleep 1
+        done
+        echo "        "
+}
+
+# This makes the built-in `time` command print runtime in seconds:
+TIMEFORMAT="%0R"
+
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export BASEDIR
 
@@ -54,8 +78,18 @@ do
     echo $experiment_dir
     mkdir $experiment_dir/out
 
-    (cd $experiment_dir && time ./run.sh > out/stdout 2> out/stderr) 2>&1 | grep real
-    echo
+    if [ -v prev_elapsed ]; then
+        countdown $prev_elapsed &
+        countdown_pid=$!
+    fi
+
+    prev_elapsed=$((cd $experiment_dir && time ./run.sh > out/stdout 2> out/stderr ) 2>&1)
+
+    if [ -v countdown_pid ]; then
+        kill -PIPE $countdown_pid 2> /dev/null && echo
+    fi
+
+    echo "$prev_elapsed"s
 
     sleep 1
 
