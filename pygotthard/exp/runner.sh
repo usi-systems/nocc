@@ -101,9 +101,10 @@ do
     if [ $i -eq 0 ]; then
         remaining_experiments=$(ls "$TORUN_DIR" | wc -l)
         duration=$((prev_elapsed * remaining_experiments))
+        eta_secs=$(($(date +%s) + duration))
         echo -e "\n================================================="
         echo Duration: $((duration/3600))h $((duration%3600/60))m $((duration%60))s
-        echo ETA: $(date -d @$(($(date +%s) + duration)))
+        echo ETA: $(TZ='America/Los_Angeles' date -d @$eta_secs) // $(TZ='America/New_York' date -d @$eta_secs) // $(TZ='Europe/Zurich' date -d @$eta_secs)
         echo -e "=================================================\n"
     fi
 

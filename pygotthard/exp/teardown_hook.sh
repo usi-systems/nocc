@@ -13,5 +13,5 @@ time nice -n 18 ./parse_tpcc_results.py $EXPERIMENTS_DIR/done > $RESULTS_DIR/"$E
         -I num_clients \
         -d total_rate,payment_rate,order_status_rate,payment_store_aborts_per_txn,order_status_store_aborts_per_txn,store_cpu_pct \
         -c plot.config --out-tsv --skip-single \
-        -o plots \
+        -o plots/"$EXPERIMENTS_NAME" \
         $RESULTS_DIR/$EXPERIMENTS_NAME.tsv
