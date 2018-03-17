@@ -101,10 +101,10 @@ do
     if [ $i -eq 0 ]; then
         remaining_experiments=$(ls "$TORUN_DIR" | wc -l)
         duration=$((prev_elapsed * remaining_experiments))
-        echo "\n================================================="
+        echo -e "\n================================================="
         echo Duration: $((duration/3600))h $((duration%3600/60))m $((duration%60))s
         echo ETA: $(date -d @$(($(date +%s) + duration)))
-        echo "=================================================\n"
+        echo -e "=================================================\n"
     fi
 
     run_hook teardown
