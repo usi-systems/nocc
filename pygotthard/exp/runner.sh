@@ -58,6 +58,9 @@ run_hook() {
     fi
 }
 
+run_hook before
+
+i=0
 while true
 do
 
@@ -71,7 +74,7 @@ do
         break
     fi
 
-    run_hook before
+    run_hook setup
 
     mv "$TORUN_DIR/$experiment_dirname" "$RUNNING_DIR/"
     experiment_dir="$RUNNING_DIR/$experiment_dirname"
@@ -83,7 +86,7 @@ do
         countdown_pid=$!
     fi
 
-    prev_elapsed=$((cd $experiment_dir && time ./run.sh > out/stdout 2> out/stderr ) 2>&1)
+    prev_elapsed=$( (cd $experiment_dir && time ./run.sh > out/stdout 2> out/stderr ) 2>&1)
 
     if [ -v countdown_pid ]; then
         kill -PIPE $countdown_pid 2> /dev/null && echo
@@ -95,7 +98,18 @@ do
 
     mv $experiment_dir $DONE_DIR
 
-    run_hook after
+    if [ $i -eq 0 ]; then
+        remaining_experiments=$(ls "$TORUN_DIR" | wc -l)
+        duration=$((prev_elapsed * remaining_experiments))
+        echo "\n================================================="
+        echo Duration: $((duration/3600))h $((duration%3600/60))m $((duration%60))s
+        echo ETA: $(date -d @$(($(date +%s) + duration)))
+        echo "=================================================\n"
+    fi
 
+    run_hook teardown
+
+    i=$((i+1))
 done
 
+run_hook after

@@ -14,7 +14,7 @@ TORUN_DIR="$EXPERIMENTS_DIR/torun"
 mkdir -p $DONE_DIR
 mkdir -p $TORUN_DIR
 
-for h in before after
+for h in before after setup teardown
 do
     if [ -f "$BASEDIR/$h"_hook.sh ] && [ ! -f "$EXPERIMENTS_DIR/$h"_hook.sh ]; then
         cp "$BASEDIR/$h"_hook.sh "$EXPERIMENTS_DIR"
