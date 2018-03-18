@@ -184,7 +184,7 @@ class Store:
         return self.values[key] if key in self.values else NULL_VALUE
 
     def _get(self, o=None, k=None, t=TXN_VALUE):
-        assert(k or (o and o.key))
+        assert k is not None or (o and o.key is not None)
         return TxnOp(t=t, key=o.key if o else k,
                 value=self._val(o.key if o else k))
 
