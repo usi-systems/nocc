@@ -119,10 +119,11 @@ MAX_TXNMSG_SIZE = TXNHDR_SIZE + TXNOP_SIZE*GOTTHARD_MAX_OP
 class TxnMsg:
 
     def __init__(self, binstr=None, req=False, res=False, replyto=None,
-            cl_id=0, req_id=0, status=0, frag_seq=1, frag_cnt=1, from_switch=0, ops=[]):
+            cl_id=0, req_id=0, status=0, frag_seq=1, frag_cnt=1, store_commit=0, from_switch=0, ops=[]):
 
-        self.flags = BitFlags(flags=['type', 'from_switch', 'reset'])
+        self.flags = BitFlags(flags=['type', 'from_switch', 'reset', 'store_commit'])
         self.flags.from_switch = from_switch
+        self.flags.store_commit = store_commit # don't let the switch send an early OK
         self.cl_id = cl_id
         self.req_id = req_id
         self.frag_seq = frag_seq
@@ -164,6 +165,7 @@ class TxnMsg:
     def __iter__(self):
         if self.flags.type == TYPE_RES: yield 'status', status_to_string[self.status]
         if self.flags.from_switch: yield 'from_switch', self.flags.from_switch
+        if self.flags.store_commit: yield 'store_commit', self.flags.store_commit
         for f in ['cl_id', 'req_id', 'ops', 'frag_seq', 'frag_cnt']:
             yield f, getattr(self, f)
 
@@ -287,8 +289,9 @@ class GotthardClient:
 
     def req(self, *ops, **kwargs):
         req_id = kwargs['req_id'] if 'req_id' in kwargs else None
+        store_commit = kwargs['store_commit'] if 'store_commit' in kwargs else False
         if len(ops) == 1 and type(ops[0]) == list: ops = ops[0]
-        reqs = self.buildreq(req_id=req_id, ops=ops)
+        reqs = self.buildreq(req_id=req_id, store_commit=store_commit, ops=ops)
         self.sendreq(reqs)
         return self.recvres(req_id=reqs[0].req_id)
 
@@ -298,24 +301,24 @@ class GotthardClient:
         self.sendreq(reqs)
         return self.recvres(req_id=reqs[0].req_id)
 
-    def reqAsync(self, ops, req_id=None):
-        reqs = self.buildreq(req_id=req_id,
+    def reqAsync(self, ops, req_id=None, store_commit=False):
+        reqs = self.buildreq(req_id=req_id, store_commit=store_commit,
                 ops=ops if type(ops) is list else [ops])
         self.sendreq(reqs)
         return reqs[0].req_id
 
-    def buildreq(self, req_id=None, ops=[]):
+    def buildreq(self, store_commit=False, req_id=None, ops=[]):
         if req_id is None:
             self.req_id_seq += 1
             req_id = self.req_id_seq
 
         if len(ops) == 0:
-            return [TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id)]
+            return [TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id, store_commit=store_commit)]
 
         frag_cnt = int(math.ceil(len(ops) / float(GOTTHARD_MAX_OP)))
         reqs = []
         for i in xrange(0, frag_cnt):
-            reqs.append(TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id,
+            reqs.append(TxnMsg(req=True, cl_id=self.cl_id, req_id=req_id, store_commit=store_commit,
                 frag_seq=i+1, frag_cnt=frag_cnt,
                 ops=ops[i*GOTTHARD_MAX_OP:(i*GOTTHARD_MAX_OP)+GOTTHARD_MAX_OP]))
         return reqs

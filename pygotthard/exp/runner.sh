@@ -27,13 +27,28 @@ TIMEFORMAT="%0R"
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export BASEDIR
 
+usage() { echo "Usage: $0 [-e script.sh] EXPERIMENTS_DIR" 1>&2; exit 1; }
+
+while getopts ":e:" o; do
+  case "${o}" in
+    e)
+      EXEC_SCRIPT=${OPTARG}
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+shift $((OPTIND-1))
+
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 EXPERIMENTS_DIR"
-    exit 1
+    echo Error: missing EXPERIMENTS_DIR
+    usage
 else
     EXPERIMENTS_DIR=$1
 fi
 export EXPERIMENTS_DIR
+
 
 if [ ! -d $EXPERIMENTS_DIR ]; then
     echo "Directory does not exist: $EXPERIMENTS_DIR"
@@ -51,6 +66,11 @@ TORUN_DIR="$EXPERIMENTS_DIR/torun"
 RUNNING_DIR="$EXPERIMENTS_DIR/running"
 mkdir -p $RUNNING_DIR
 
+if [ -v EXEC_SCRIPT ]; then
+    $(realpath $EXEC_SCRIPT)
+    exit 0
+fi
+
 run_hook() {
     hook_file=$EXPERIMENTS_DIR/"$1"_hook.sh
     if [ -x $hook_file ]; then
@@ -64,8 +84,8 @@ i=0
 while true
 do
 
-    if [ -f $EXPERIMENTS_DIR/pause ]; then
-        echo "Detected pause file. Now exiting. Remove pause file to continue."
+    if [ -f "$EXPERIMENTS_DIR"/pause ]; then
+        echo "Detected pause file. Now exiting. Remove $EXPERIMENTS_DIR/pause to continue."
         break
     fi
 
