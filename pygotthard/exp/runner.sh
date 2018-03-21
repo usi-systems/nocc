@@ -49,8 +49,6 @@ else
 fi
 export EXPERIMENTS_DIR
 
-echo $EXPERIMENTS_DIR
-
 
 if [ ! -d $EXPERIMENTS_DIR ]; then
     echo "Directory does not exist: $EXPERIMENTS_DIR"
@@ -86,8 +84,8 @@ i=0
 while true
 do
 
-    if [ -f $EXPERIMENTS_DIR/pause ]; then
-        echo "Detected pause file. Now exiting. Remove pause file to continue."
+    if [ -f "$EXPERIMENTS_DIR"/pause ]; then
+        echo "Detected pause file. Now exiting. Remove $EXPERIMENTS_DIR/pause to continue."
         break
     fi
 
