@@ -267,7 +267,6 @@ int main(int argc, char *argv[]) {
             for (i = 0; i < req->op_cnt; i++) {
                 if (op->op_type == TXN_WRITE) {
                     key = ntohl(op->key);
-                    //printf("write key %d\n", key);
                     my_val = &value_store[key * VALUE_SIZE];
                     memcpy(my_val, op->value, VALUE_SIZE);
 
@@ -279,13 +278,19 @@ int main(int argc, char *argv[]) {
                 }
                 else if (op->op_type == TXN_READ) {
                     key = ntohl(op->key);
-                    //printf("read key %d\n", key);
                     my_val = &value_store[key * VALUE_SIZE];
 
                     res_op = (struct gotthard_op *)(res_buf + sizeof(struct gotthard_hdr) + res->op_cnt*sizeof(struct gotthard_op));
                     res_op->op_type = TXN_VALUE;
                     res_op->key = op->key;
                     memcpy(res_op->value, my_val, VALUE_SIZE);
+                    res->op_cnt++;
+                }
+                else if (op->op_type == TXN_CPU_PCT) {
+                    res_op = (struct gotthard_op *)(res_buf + sizeof(struct gotthard_hdr) + res->op_cnt*sizeof(struct gotthard_op));
+                    res_op->op_type = TXN_CPU_PCT;
+                    res_op->key = op->key;
+                    bzero(res_op->value, VALUE_SIZE);
                     res->op_cnt++;
                 }
             }
