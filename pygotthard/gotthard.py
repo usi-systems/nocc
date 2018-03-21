@@ -395,6 +395,13 @@ class GotthardClient:
             res = self._pop_recvqueue(req_id)
             if res: return res
 
+    def storeCpuUsage(self):
+        res = self.req([TxnOp(t=TXN_CPU_PCT, key=0, value='a')])
+        assert res.status == STATUS_OK
+        assert len(res.ops) == 1
+        pct, = struct.unpack('!f', res.ops[0].value[:4])
+        return pct
+
     @staticmethod
     def W(key, val):
         return TxnOp(t=TXN_WRITE, key=key, value=val)
@@ -451,11 +458,7 @@ class GotthardLogger:
 
 def reqCpuUsage(store_addr=None, logger=None, resend_timeout=None):
     with GotthardClient(store_addr=store_addr, logger=logger, resend_timeout=resend_timeout) as gc:
-        res = gc.req([TxnOp(t=TXN_CPU_PCT, key=0, value='a')])
-        assert res.status == STATUS_OK
-        assert len(res.ops) == 1
-        pct, = struct.unpack('!f', res.ops[0].value[:4])
-        return pct
+        return gc.storeCpuUsage()
 
 
 if __name__ == '__main__':

@@ -13,6 +13,9 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <math.h>
+#include "sys/times.h"
+#include "sys/vtimes.h"
+#include <sys/sysinfo.h>
 
 
 #define GOTTHARD_MAX_OP  7
@@ -128,6 +131,30 @@ struct __attribute__((__packed__)) gotthard_op {
     char value[VALUE_SIZE];
 };
 
+clock_t prev_cpu_check = 0;
+clock_t prev_stime = 0, prev_utime = 0;
+int cpu_count;
+
+double cpu_usage() {
+    clock_t now, total_time, used_time;
+    struct tms t;
+    double pct = 0.0;
+
+    now = times(&t);
+
+    if (prev_cpu_check > 0 && now > prev_cpu_check && t.tms_stime >= prev_stime && t.tms_utime >= prev_utime) {
+        total_time = now - prev_cpu_check;
+        used_time = (t.tms_stime - prev_stime) + (t.tms_utime - prev_utime);
+        pct = ((double) used_time / total_time) * (100 / cpu_count);
+    }
+
+    prev_cpu_check = now;
+    prev_stime = t.tms_stime;
+    prev_utime = t.tms_utime;
+
+    return pct;
+}
+
 
 int main(int argc, char *argv[]) {
     int opt;
@@ -180,6 +207,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
+
     if (recover_filename)
         load_store();
 
@@ -214,6 +243,7 @@ int main(int argc, char *argv[]) {
     uint32_t key;
     char *my_val;
     char res_buf[BUFSIZE];
+    float pct;
     res = (struct gotthard_hdr *)res_buf;
 
     while (1) {
@@ -290,7 +320,8 @@ int main(int argc, char *argv[]) {
                     res_op = (struct gotthard_op *)(res_buf + sizeof(struct gotthard_hdr) + res->op_cnt*sizeof(struct gotthard_op));
                     res_op->op_type = TXN_CPU_PCT;
                     res_op->key = op->key;
-                    bzero(res_op->value, VALUE_SIZE);
+                    pct = (float)cpu_usage();
+                    *(uint32_t *)res_op->value = htonl(*(uint32_t*)&pct);
                     res->op_cnt++;
                 }
             }
