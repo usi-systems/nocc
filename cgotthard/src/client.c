@@ -226,7 +226,7 @@ void *client_thread(void *arg) {
     close(sock_fd);
 }
 
-#define MAX_THREADS 100
+#define MAX_THREADS 256
 pthread_t client_threads[MAX_THREADS];
 
 int main(int argc, char *argv[]) {
@@ -267,6 +267,8 @@ int main(int argc, char *argv[]) {
 
 	store_addr.sin_addr.s_addr = inet_addr(store_host);
     store_addr.sin_port = htons(atoi(store_port));
+
+    assert(num_clients <= MAX_THREADS);
 
     struct client_stats st[MAX_THREADS];
 
