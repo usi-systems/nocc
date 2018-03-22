@@ -29,6 +29,56 @@ int num_clients = 1;
 float duration = 1;
 float write_ratio = 0.2;
 
+float get_store_cpu_usage() {
+    struct sockaddr_in sock_addr;
+    struct sockaddr_in remote_addr;
+    int remote_addr_len = sizeof(remote_addr);
+    char buf[BUFSIZE];
+    int size, sent_size;
+
+	int sock_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+
+	sock_addr.sin_family = AF_INET;
+	sock_addr.sin_addr.s_addr = 0;
+    sock_addr.sin_port = 0;
+	if (bind(sock_fd, (struct sockaddr *)&sock_addr, sizeof(sock_addr)) == -1)
+        error("bind()");
+
+    size = sizeof(struct gotthard_hdr) + sizeof(struct gotthard_op);
+    struct gotthard_hdr *h = (struct gotthard_hdr *)buf;
+    struct gotthard_op *op = (struct gotthard_op *)(buf + sizeof(struct gotthard_hdr));
+
+    h->flags = 0;
+    h->cl_id = htonl(1);
+    h->req_id = htonl(1);
+    h->frag_cnt = 1;
+    h->frag_seq = 1;
+    h->status = STATUS_OK;
+    h->op_cnt = 1;
+    op->op_type = TXN_CPU_PCT;
+
+    sent_size = sendto(sock_fd, buf, size, 0, (struct sockaddr *)&store_addr, sizeof(store_addr));
+    if (sent_size < 0)
+        error("sendto");
+    assert(sent_size == size && "All of the bytes should be sent");
+
+    size = recvfrom(sock_fd, buf, BUFSIZE, 0,
+            (struct sockaddr *)&remote_addr, &remote_addr_len);
+    if (size < 0)
+        error("recvfrom");
+
+    char msg_type = h->flags >> 7 & 1;
+    assert(msg_type == TYPE_RES);
+    assert(h->status == STATUS_OK);
+    assert(h->op_cnt == 1);
+    assert(op->op_type == TXN_CPU_PCT);
+
+    uint32_t pct_data = ntohl(*(uint32_t*)op->value);
+    float pct = *(float*)&pct_data;
+
+    return pct;
+}
+
 int make_req(char *buf, uint32_t cl_id, uint32_t req_id, uint32_t key, uint32_t cur_val) {
     int pkt_size = sizeof(struct gotthard_hdr);
     struct gotthard_hdr *req = (struct gotthard_hdr *)buf;
@@ -79,7 +129,6 @@ int parse_res(char *buf, size_t size, uint32_t cl_id, uint32_t req_id, uint32_t 
     uint8_t msg_type = res->flags >> 7 & 1;
     *from_switch = res->flags >> 6 & 1;
     assert(msg_type == TYPE_RES);
-    assert(!(*from_switch));
 
     uint32_t res_cl_id = htonl(res->cl_id);
     uint32_t res_req_id = htonl(res->req_id);
@@ -148,6 +197,9 @@ void *client_thread(void *arg) {
 
         size = recvfrom(sock_fd, buf, BUFSIZE, 0,
                 (struct sockaddr *)&remote_addr, &remote_addr_len);
+        if (size < 0)
+            error("recvfrom");
+
 
         uint8_t status = parse_res(buf, size, cl_id, req_id, key, &val, &from_switch);
 
@@ -160,10 +212,6 @@ void *client_thread(void *arg) {
             if (from_switch)
                 st->switch_abort_cnt++;
         }
-
-        //printf("Result: %d\n", status);
-        //if (success || req_id > 10)
-        //    break;
 	} while (txn_start < start + duration);
 
     st->elapsed = gettimestamp() - start;
@@ -212,6 +260,7 @@ int main(int argc, char *argv[]) {
 
     struct client_stats st[MAX_THREADS];
 
+    get_store_cpu_usage();
     for (i = 0; i < num_clients; i++) {
         st[i].client_num = i+1;
         if (pthread_create(&client_threads[i], NULL, client_thread, (void *)&st[i]))
@@ -221,6 +270,7 @@ int main(int argc, char *argv[]) {
         if (pthread_join(client_threads[i], NULL))
             error("pthread_join()");
     }
+    float store_cpu_pct = get_store_cpu_usage();
 
     if (stats_filename) {
         FILE *fh = fopen(stats_filename, "w");
@@ -253,8 +303,9 @@ int main(int argc, char *argv[]) {
             if (i != 0) fprintf(fh, ",");
             fprintf(fh, "%f", st[i].elapsed);
         }
-        fprintf(fh, "], \"write_ratio\": %f, \"zipf\": 0, \"pop_size\": 1, \"store_cpu_pct\": 0.1,\n", write_ratio);
-        fprintf(fh, "\"num_clients\": %d}\n", num_clients);
+        fprintf(fh, "], \"write_ratio\": %f, \"store_cpu_pct\": %f,\n", write_ratio, store_cpu_pct);
+        fprintf(fh, "\"zipf\": 0, \"pop_size\": 1,\n");
+        fprintf(fh, "\"duration\": %f, \"num_clients\": %d}\n", duration, num_clients);
 
         fclose(fh);
     }
