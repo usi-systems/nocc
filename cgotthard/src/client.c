@@ -17,7 +17,7 @@
 char *progname;
 void usage(int rc) {
     fprintf(rc == 0 ? stdout : stderr,
-            "Usage: %s [-c NUM_CLIENTS] [-d DURATION] STORE_HOST STORE_PORT\n\
+            "Usage: %s [-c NUM_CLIENTS] [-d DURATION] [-w WRITE_RATIO] [-v VERBOSITY] [-s STATS_OUT_FILE] STORE_HOST STORE_PORT\n\
 \n\
 ", progname);
     exit(rc);
@@ -27,6 +27,7 @@ void usage(int rc) {
 struct sockaddr_in store_addr;
 int num_clients = 1;
 float duration = 1;
+int verbosity = 0;
 float write_ratio = 0.2;
 
 float get_store_cpu_usage() {
@@ -167,7 +168,7 @@ void *client_thread(void *arg) {
     struct sockaddr_in remote_addr;
     int remote_addr_len = sizeof(remote_addr);
     char buf[BUFSIZE];
-    uint32_t cl_id = 1;
+    uint32_t cl_id = st->client_num;
     uint32_t req_id = 0;
     uint32_t val = 0;
     uint32_t key = 1;
@@ -217,6 +218,10 @@ void *client_thread(void *arg) {
 
     st->req_cnt = req_id;
     st->elapsed = gettimestamp() - start;
+    float txn_rate = st->txn_cnt / st->elapsed;
+
+    if (verbosity > 0)
+        printf("Client %2d incremented counter %d times to %d (%.2f TXN/s)\n", st->client_num, st->txn_cnt, val, txn_rate);
 
     close(sock_fd);
 }
@@ -229,10 +234,13 @@ int main(int argc, char *argv[]) {
     char *stats_filename = 0;
 
     progname = basename(argv[0]);
-    while ((opt = getopt(argc, argv, "hc:d:s:w:")) != -1) {
+    while ((opt = getopt(argc, argv, "hc:d:s:w:v:")) != -1) {
         switch (opt) {
             case 'c':
                 num_clients = atoi(optarg);
+                break;
+            case 'v':
+                verbosity = atoi(optarg);
                 break;
             case 'd':
                 duration = atof(optarg);
@@ -261,6 +269,9 @@ int main(int argc, char *argv[]) {
     store_addr.sin_port = htons(atoi(store_port));
 
     struct client_stats st[MAX_THREADS];
+
+    if (verbosity > 0)
+        printf("Running %d clients for %.2f seconds with %.2f write ratio.\n", num_clients, duration, write_ratio);
 
     get_store_cpu_usage();
     for (i = 0; i < num_clients; i++) {

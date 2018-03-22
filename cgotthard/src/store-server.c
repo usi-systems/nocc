@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
                     res->op_cnt++;
                 }
             }
+            //printf("%d\n", ntohl(req->cl_id));
         }
 
         size = sizeof(struct gotthard_hdr) + res->op_cnt*sizeof(struct gotthard_op);
