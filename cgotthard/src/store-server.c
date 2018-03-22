@@ -16,19 +16,21 @@
 #include "sys/times.h"
 #include "sys/vtimes.h"
 #include <sys/sysinfo.h>
+#include <pthread.h>
 
 #define BUFSIZE 2048
 
 char *dump_filename = 0;
 char *recover_filename = 0;
+int verbosity = 0;
+int num_threads = 1;
 
 char listen_hostname[256];
 
 char value_store[STORE_SIZE];
+pthread_mutex_t store_lock = PTHREAD_MUTEX_INITIALIZER;
 
 char *progname;
-
-int verbosity = 0;
 
 int sockfd = 0;
 
@@ -66,7 +68,7 @@ void dump_store() {
 
 void usage(int rc) {
     fprintf(rc == 0 ? stdout : stderr,
-            "Usage: %s [-v VERBOSITY] [-o OPTIONS] [-r FILE] [-d FILE] [[LISTEN_HOST:]PORT]\n\
+            "Usage: %s [-v VERBOSITY] [-o OPTIONS] [-r FILE] [-d FILE] [-j THREADS] [[LISTEN_HOST:]PORT]\n\
 \n\
     -r FILE     Recover the store from this file.\n\
     -d FILE     Dump the store to this file on exit.\n\
@@ -115,89 +117,14 @@ double cpu_usage() {
     return pct;
 }
 
+#define MAX_THREADS 100
+pthread_t store_threads[MAX_THREADS];
 
-int main(int argc, char *argv[]) {
-    int opt;
-    char *listen_host_port = 0;
-    strcpy(listen_hostname, "127.0.0.1");
-    int port;
-    short host_ok, port_ok;
-    char *log_filename = 0;
-    char *extra_options = 0;
+void *store_thread(void *arg) {
+    long long thread_num = (long long)arg;
     struct gotthard_hdr *req, *res;
     struct gotthard_op *op, *res_op;
-
-    progname = basename(argv[0]);
-
-    while ((opt = getopt(argc, argv, "hv:o:d:r:")) != -1) {
-        switch (opt) {
-            case 'o':
-                extra_options = optarg;
-                break;
-            case 'v':
-                verbosity = atoi(optarg);
-                break;
-            case 'd':
-                dump_filename = optarg;
-                break;
-            case 'r':
-                recover_filename = optarg;
-                break;
-            case 'h':
-                usage(0);
-            default: /* '?' */
-                usage(-1);
-        }
-    }
-
-    if (argc - optind > 1)
-        usage(-1);
-    else if (argc - optind == 1)
-        listen_host_port = argv[optind];
-
-    if (listen_host_port) {
-        int parsed_port;
-        parse_host_port(listen_host_port, 1, listen_hostname, &host_ok, &port, &port_ok);
-        if (!port_ok)
-            port = 1234;
-    }
-
-    if (extra_options) {
-        if (strchr(extra_options, 'q')) {
-        }
-    }
-
-    cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
-
-    if (recover_filename)
-        load_store();
-
-    signal(SIGINT, catch_int);
-
-    int i, size;
-    struct sockaddr_in localaddr;
     struct sockaddr_in remoteaddr;
-    char buf[BUFSIZE];
-
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0)
-        error("socket()");
-
-    int optval = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
-            (const void *)&optval , sizeof(int));
-
-    bzero((char *)&localaddr, sizeof(localaddr));
-    localaddr.sin_family = AF_INET;
-    localaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    localaddr.sin_port = htons(port);
-
-    if (bind(sockfd, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
-        error("bind()");
-
-    if (verbosity > 0)
-        fprintf(stderr, "Listenning on port %d\n", port);
-
     int remoteaddr_len = sizeof(remoteaddr);
     uint8_t bad_read, type_flag, reset_flag;
     uint32_t key;
@@ -205,6 +132,9 @@ int main(int argc, char *argv[]) {
     char res_buf[BUFSIZE];
     float pct;
     res = (struct gotthard_hdr *)res_buf;
+    int i, size;
+    char buf[BUFSIZE];
+
 
     while (1) {
         bad_read = 0;
@@ -231,6 +161,7 @@ int main(int argc, char *argv[]) {
         res->flags = 1 << 7; // RES flag
         res->status = STATUS_OK;
 
+        pthread_mutex_lock(&store_lock);
         if (reset_flag)
             reset_store();
 
@@ -287,11 +218,106 @@ int main(int argc, char *argv[]) {
             }
             //printf("%d\n", ntohl(req->cl_id));
         }
+        pthread_mutex_unlock(&store_lock);
 
         size = sizeof(struct gotthard_hdr) + res->op_cnt*sizeof(struct gotthard_op);
         if (sendto(sockfd, res_buf, size, 0, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
             error("sendto");
 
+    }
+}
+
+int main(int argc, char *argv[]) {
+    int opt;
+    char *listen_host_port = 0;
+    strcpy(listen_hostname, "127.0.0.1");
+    struct sockaddr_in localaddr;
+    int port, i;
+    short host_ok, port_ok;
+    char *log_filename = 0;
+    char *extra_options = 0;
+
+    progname = basename(argv[0]);
+
+    while ((opt = getopt(argc, argv, "hv:o:d:j:r:")) != -1) {
+        switch (opt) {
+            case 'o':
+                extra_options = optarg;
+                break;
+            case 'v':
+                verbosity = atoi(optarg);
+                break;
+            case 'j':
+                num_threads = atoi(optarg);
+                break;
+            case 'd':
+                dump_filename = optarg;
+                break;
+            case 'r':
+                recover_filename = optarg;
+                break;
+            case 'h':
+                usage(0);
+            default: /* '?' */
+                usage(-1);
+        }
+    }
+
+    if (argc - optind > 1)
+        usage(-1);
+    else if (argc - optind == 1)
+        listen_host_port = argv[optind];
+
+    if (listen_host_port) {
+        int parsed_port;
+        parse_host_port(listen_host_port, 1, listen_hostname, &host_ok, &port, &port_ok);
+        if (!port_ok)
+            port = 1234;
+    }
+
+    if (extra_options) {
+        if (strchr(extra_options, 'q')) {
+        }
+    }
+
+    cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+    if (recover_filename)
+        load_store();
+
+    signal(SIGINT, catch_int);
+
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0)
+        error("socket()");
+
+    int optval = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
+            (const void *)&optval , sizeof(int));
+
+    bzero((char *)&localaddr, sizeof(localaddr));
+    localaddr.sin_family = AF_INET;
+    localaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    localaddr.sin_port = htons(port);
+
+    if (bind(sockfd, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
+        error("bind()");
+
+    if (verbosity > 0)
+        fprintf(stderr, "Listenning on port %d\n", port);
+
+    if (num_threads == 1) {
+        store_thread((void*)1);
+    }
+    else {
+        for (i = 0; i < num_threads; i++) {
+            if (pthread_create(&store_threads[i], NULL, store_thread, (void*)(long long)(i+1)))
+                error("pthread_create()");
+        }
+        for (i = 0; i < num_threads; i++) {
+            if (pthread_join(store_threads[i], NULL))
+                error("pthread_join()");
+        }
     }
 
     cleanup_and_exit();
