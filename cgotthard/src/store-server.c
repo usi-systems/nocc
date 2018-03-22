@@ -17,29 +17,6 @@
 #include "sys/vtimes.h"
 #include <sys/sysinfo.h>
 
-
-#define GOTTHARD_MAX_OP  7
-
-#define TYPE_REQ   0
-#define TYPE_RES   1
-
-#define STATUS_OK   0
-#define STATUS_ABORT   1
-#define STATUS_OPTIMISTIC_ABORT   2
-#define STATUS_BADREQ   3
-
-#define TXN_NOP       0
-#define TXN_READ      1 // request: I would like to get the value of this obj
-#define TXN_WRITE     2 // request: write this value to the object
-#define TXN_VALUE     3 // fact: this is what (I think) the value is
-#define TXN_UPDATED   4 // response: the object was just updated to this value
-#define TXN_CPU_PCT   5 // request/response for CPU usage since last measurement
-
-#define MAX_KEYS      65536 // 2^16
-#define VALUE_SIZE    16
-#define STORE_SIZE    MAX_KEYS * VALUE_SIZE
-
-
 #define BUFSIZE 2048
 
 char *dump_filename = 0;
@@ -113,23 +90,6 @@ void cleanup_and_exit() {
 void catch_int(int signo) {
     cleanup_and_exit();
 }
-
-
-struct __attribute__((__packed__)) gotthard_hdr {
-    uint8_t flags; // msg_type, from_switch, reset, store_commit
-    uint32_t cl_id;
-    uint32_t req_id;
-    uint8_t frag_seq;
-    uint8_t frag_cnt;
-    uint8_t status;
-    uint8_t op_cnt;
-};
-
-struct __attribute__((__packed__)) gotthard_op {
-    uint8_t op_type;
-    uint32_t key;
-    char value[VALUE_SIZE];
-};
 
 clock_t prev_cpu_check = 0;
 clock_t prev_stime = 0, prev_utime = 0;
