@@ -152,6 +152,7 @@ int parse_res(char *buf, size_t size, uint32_t cl_id, uint32_t req_id, uint32_t 
 
 struct client_stats {
     unsigned client_num;
+    unsigned req_cnt;
     unsigned txn_cnt;
     unsigned abort_cnt;
     unsigned switch_abort_cnt;
@@ -214,6 +215,7 @@ void *client_thread(void *arg) {
         }
 	} while (txn_start < start + duration);
 
+    st->req_cnt = req_id;
     st->elapsed = gettimestamp() - start;
 
     close(sock_fd);
@@ -285,6 +287,11 @@ int main(int argc, char *argv[]) {
         for (i = 0; i < num_clients; i++) {
             if (i != 0) fprintf(fh, ",");
             fprintf(fh, "%d", st[i].switch_abort_cnt);
+        }
+        fprintf(fh, "], \"req_counts\": [");
+        for (i = 0; i < num_clients; i++) {
+            if (i != 0) fprintf(fh, ",");
+            fprintf(fh, "%d", st[i].req_cnt);
         }
 
         fprintf(fh, "], \"txn_counts\": [");
