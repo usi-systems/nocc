@@ -7,7 +7,7 @@ from ReadWriteLock import ReadWriteLock
 import threading
 from gotthard import VALUE_SIZE
 
-MAX_STR_SIZE=12
+MAX_STR_SIZE=1
 
 def sqlTypeToStructFormat(t):
     if re.match('^([xcbB?hHiIlLqQfdpP]|\d+(s|p))$', t): return t # already a struct fmt
@@ -42,6 +42,7 @@ class SerializableRecord(dict):
         self.pack_fields = [f for f in self.fieldnames if not self.fielddefs[f][1]]
         self.fmt = '!' + ' '.join([self.fielddefs[f][0] for f in self.pack_fields])
         self.struct = struct.Struct(self.fmt)
+        assert self.struct.size <= VALUE_SIZE, self.struct.size
 
 
     def unpack(self, binstr):
@@ -59,6 +60,7 @@ class SerializableRecord(dict):
             print self.__class__.__name__
             print self.fieldnames, self.fmt
             print self.fielddefs
+            print vals
             print self
             raise
 
@@ -122,35 +124,35 @@ class DistrictRec(SerializableRecord):
         SerializableRecord.__init__(self, (
                 ('D_ID', "TINYINT"),
                 ('D_W_ID', "SMALLINT"),
-                ('D_NAME', "VARCHAR(16)"),
+                ('D_NAME', "VARCHAR(16)", True),
                 ('D_STREET_1', "VARCHAR(32)", True), # don't pack
                 ('D_STREET_2', "VARCHAR(32)", True), # don't pack
-                ('D_CITY', "VARCHAR(32)"),
-                ('D_STATE', "VARCHAR(2)"),
-                ('D_ZIP', "VARCHAR(9)"),
-                ('D_TAX', "FLOAT"),
+                ('D_CITY', "VARCHAR(32)", True),
+                ('D_STATE', "VARCHAR(2)", True),
+                ('D_ZIP', "VARCHAR(9)", True),
+                ('D_TAX', "TINYINT"),
                 ('D_YTD', "FLOAT"),
                 ('D_NEXT_O_ID', "INT"),
                 #('_EXTRA_LAST_O_ID1', "INT"), # unneccesary; same as D_NEXT_O_ID-1
                 ('_EXTRA_LAST_O_ID2', "INT"),
-                ('_EXTRA_LAST_O_ID3', "INT"),
-                ('_EXTRA_LAST_O_ID4', "INT"),
-                ('_EXTRA_LAST_O_ID5', "INT"),
-                ('_EXTRA_LAST_O_ID6', "INT"),
-                ('_EXTRA_LAST_O_ID7', "INT"),
-                ('_EXTRA_LAST_O_ID8', "INT"),
-                ('_EXTRA_LAST_O_ID9', "INT"),
-                ('_EXTRA_LAST_O_ID10', "INT"),
-                ('_EXTRA_LAST_O_ID11', "INT"),
-                ('_EXTRA_LAST_O_ID12', "INT"),
-                ('_EXTRA_LAST_O_ID13', "INT"),
-                ('_EXTRA_LAST_O_ID14', "INT"),
-                ('_EXTRA_LAST_O_ID15', "INT"),
-                ('_EXTRA_LAST_O_ID16', "INT"),
-                ('_EXTRA_LAST_O_ID17', "INT"),
-                ('_EXTRA_LAST_O_ID18', "INT"),
-                ('_EXTRA_LAST_O_ID19', "INT"),
-                ('_EXTRA_LAST_O_ID20', "INT"),
+                ('_EXTRA_LAST_O_ID3', "INT", True),
+                ('_EXTRA_LAST_O_ID4', "INT", True),
+                ('_EXTRA_LAST_O_ID5', "INT", True),
+                ('_EXTRA_LAST_O_ID6', "INT", True),
+                ('_EXTRA_LAST_O_ID7', "INT", True),
+                ('_EXTRA_LAST_O_ID8', "INT", True),
+                ('_EXTRA_LAST_O_ID9', "INT", True),
+                ('_EXTRA_LAST_O_ID10', "INT", True),
+                ('_EXTRA_LAST_O_ID11', "INT", True),
+                ('_EXTRA_LAST_O_ID12', "INT", True),
+                ('_EXTRA_LAST_O_ID13', "INT", True),
+                ('_EXTRA_LAST_O_ID14', "INT", True),
+                ('_EXTRA_LAST_O_ID15', "INT", True),
+                ('_EXTRA_LAST_O_ID16', "INT", True),
+                ('_EXTRA_LAST_O_ID17', "INT", True),
+                ('_EXTRA_LAST_O_ID18', "INT", True),
+                ('_EXTRA_LAST_O_ID19', "INT", True),
+                ('_EXTRA_LAST_O_ID20', "INT", True),
                 ))
         self.keyfields = ['D_W_ID', 'D_ID']
 
@@ -178,28 +180,28 @@ class ItemRec(SerializableRecord):
 class CustomerRec(SerializableRecord):
     def __init__(self):
         SerializableRecord.__init__(self, (
-                ('C_ID', "INTEGER"),
+                ('C_ID', "TINYINT"),
                 ('C_D_ID', "TINYINT"),
-                ('C_W_ID', "SMALLINT"),
-                ('C_FIRST', "VARCHAR(32)"),
-                ('C_MIDDLE', "VARCHAR(2)"),
-                ('C_LAST', "VARCHAR(32)"),
+                ('C_W_ID', "TINYINT"),
+                ('C_FIRST', "VARCHAR(32)", True),
+                ('C_MIDDLE', "VARCHAR(2)", True),
+                ('C_LAST', "VARCHAR(32)", True),
                 ('C_STREET_1', "VARCHAR(32)", True), # don't pack
                 ('C_STREET_2', "VARCHAR(32)", True), # don't pack
                 ('C_CITY', "VARCHAR(32)", True), # don't pack
                 ('C_STATE', "VARCHAR(2)", True), # don't pack
-                ('C_ZIP', "VARCHAR(9)"),
-                ('C_PHONE', "VARCHAR(32)"),
-                ('C_SINCE', "TIMESTAMP"),
-                ('C_CREDIT', "VARCHAR(2)"),
-                ('C_CREDIT_LIM', "FLOAT"),
-                ('C_DISCOUNT', "FLOAT"),
-                ('C_BALANCE', "FLOAT"),
+                ('C_ZIP', "VARCHAR(9)", True),
+                ('C_PHONE', "VARCHAR(32)", True),
+                ('C_SINCE', "TIMESTAMP", True),
+                ('C_CREDIT', "VARCHAR(2)", True),
+                ('C_CREDIT_LIM', "FLOAT", True),
+                ('C_DISCOUNT', "TINYINT"),
+                ('C_BALANCE', "INTEGER"),
                 ('C_YTD_PAYMENT', "FLOAT"),
-                ('C_PAYMENT_CNT', "INTEGER"),
-                ('C_DELIVERY_CNT', "INTEGER"),
-                ('C_DATA', "VARCHAR(500)"),
-                ('_EXTRA_LAST_O_ID', "INTEGER"),
+                ('C_PAYMENT_CNT', "SMALLINT"),
+                ('C_DELIVERY_CNT', "INTEGER", True),
+                ('C_DATA', "VARCHAR(500)", True),
+                ('_EXTRA_LAST_O_ID', "SMALLINT"),
                 ))
         self.keyfields = ['C_W_ID', 'C_D_ID', 'C_ID']
 
@@ -211,9 +213,9 @@ class HistoryRec(SerializableRecord):
                 ('H_C_W_ID', "SMALLINT"),
                 ('H_D_ID', "TINYINT"),
                 ('H_W_ID', "SMALLINT"),
-                ('H_DATE', "TIMESTAMP"),
-                ('H_AMOUNT', "FLOAT"),
-                ('H_DATA', "VARCHAR(32)")
+                ('H_DATE', "TIMESTAMP", True),
+                ('H_AMOUNT', "FLOAT", True),
+                ('H_DATA', "VARCHAR(32)", True)
                 ))
         self.keyfields = ['H_W_ID', 'H_D_ID', 'H_C_ID']
 
@@ -223,8 +225,8 @@ class StockRec(SerializableRecord):
                 ('S_I_ID', "INTEGER"),
                 ('S_W_ID', "SMALLINT"),
                 ('S_QUANTITY', "INTEGER"),
-                ('S_DIST_01', "VARCHAR(32)"),
-                ('S_DIST_02', "VARCHAR(32)"),
+                ('S_DIST_01', "VARCHAR(32)", True),
+                ('S_DIST_02', "VARCHAR(32)", True),
                 #('S_DIST_03', "VARCHAR(32)", True), # don't pack
                 #('S_DIST_04', "VARCHAR(32)", True), # don't pack
                 #('S_DIST_05', "VARCHAR(32)", True), # don't pack
@@ -233,9 +235,9 @@ class StockRec(SerializableRecord):
                 #('S_DIST_08', "VARCHAR(32)", True), # don't pack
                 #('S_DIST_09', "VARCHAR(32)", True), # don't pack
                 #('S_DIST_10', "VARCHAR(32)", True), # don't pack
-                ('S_YTD', "INTEGER"),
-                ('S_ORDER_CNT', "INTEGER"),
-                ('S_REMOTE_CNT', "INTEGER"),
+                ('S_YTD', "SMALLINT"),
+                ('S_ORDER_CNT', "SMALLINT"),
+                ('S_REMOTE_CNT', "INTEGER", True),
                 ('S_DATA', "VARCHAR(64)")
                 ))
         self.keyfields = ['S_W_ID', 'S_I_ID']
@@ -247,10 +249,10 @@ class OrderRec(SerializableRecord):
                 ('O_C_ID', "INTEGER"),
                 ('O_D_ID', "TINYINT"),
                 ('O_W_ID', "SMALLINT"),
-                ('O_ENTRY_D', "TIMESTAMP"),
-                ('O_CARRIER_ID', "INTEGER"),
+                ('O_ENTRY_D', "TIMESTAMP", True),
+                ('O_CARRIER_ID', "INTEGER", True),
                 ('O_OL_CNT', "INTEGER"),
-                ('O_ALL_LOCAL', "INTEGER")
+                ('O_ALL_LOCAL', "INTEGER", True)
                 ))
         self.keyfields = ['O_W_ID', 'O_D_ID', 'O_ID']
 
@@ -268,14 +270,14 @@ class OrderLineRec(SerializableRecord):
         SerializableRecord.__init__(self, (
                 ('OL_O_ID', "INTEGER"),
                 ('OL_D_ID', "TINYINT"),
-                ('OL_W_ID', "SMALLINT"),
+                ('OL_W_ID', "TINYINT"),
                 ('OL_NUMBER', "INTEGER"),
-                ('OL_I_ID', "INTEGER"),
-                ('OL_SUPPLY_W_ID', "SMALLINT"),
-                ('OL_DELIVERY_D', "TIMESTAMP"),
-                ('OL_QUANTITY', "INTEGER"),
+                ('OL_I_ID', "SMALLINT"),
+                ('OL_SUPPLY_W_ID', "SMALLINT", True),
+                ('OL_DELIVERY_D', "TIMESTAMP", True),
+                ('OL_QUANTITY', "INTEGER", True),
                 ('OL_AMOUNT', "FLOAT"),
-                ('OL_DIST_INFO', "VARCHAR(32)")
+                ('OL_DIST_INFO', "VARCHAR(32)", True)
                 ))
         self.keyfields = ['OL_W_ID', 'OL_D_ID', 'OL_O_ID', 'OL_NUMBER']
 
@@ -299,6 +301,9 @@ class BitKeyMap:
 
     def size(self):
         return len(self.mapping)
+
+    def lastKey(self):
+        return self.last_key
 
     def get(self, key_string):
         self.rwlock.acquire_read()
