@@ -13,6 +13,8 @@ R, W, RB = GotthardClient.R, GotthardClient.W, GotthardClient.RB
 
 op_name_to_type = {'R': TXN_READ, 'W': TXN_WRITE, 'A': TXN_VALUE}
 
+incAvg = lambda avg, val, n: (avg*(n-1) + val) / float(n)
+
 class TxnEngine:
     re_tmpl = re.compile('([a-zA-Z]+)\(([^,)]+),?\s*([^)]+)?\)')
     re_value = re.compile('^([0-9]+|[a-zA-Z])\s*(([+-])\s*([0-9]+|[a-zA-Z]))?$')
@@ -39,6 +41,7 @@ class TxnEngine:
         self.txn_start_time = None # time the last TXN was started
         self.req_lats = [] # latencies of getting a response after sending a req
         self.txn_lats = [] # latencies of successfully executing a TXN
+        self.avg_txn_lat = 0
 
 
         self.transactions = []
@@ -84,7 +87,7 @@ class TxnEngine:
                           value=value_gen()))
 
     def uponResponse(self, res):
-        self.req_lats.append(time.time() - self.req_start_time)
+        #self.req_lats.append(time.time() - self.req_start_time)
         self.req_start_time = None
 
         for op in res.ops:
@@ -97,10 +100,12 @@ class TxnEngine:
 
         successful = False
         if res.status == STATUS_OK:
-            self.txn_lats.append(time.time() - self.txn_start_time)
+            txn_lat = time.time() - self.txn_start_time
+            #self.txn_lats.append(txn_lat)
             self.txn_start_time = None
             successful = True
             self.ok_count += 1
+            self.avg_txn_lat = incAvg(self.avg_txn_lat, txn_lat, self.ok_count)
             self._chooseTxn()
         else:
             self.abort_count += 1
@@ -254,6 +259,7 @@ if __name__ == '__main__':
             write_ratio = args.write_ratio,
             elapseds = [cl.elapsed for cl in clients],
             txn_lats = [cl.engine.txn_lats for cl in clients],
+            avg_txn_lats = [cl.engine.avg_txn_lat for cl in clients],
             req_lats = [cl.engine.req_lats for cl in clients],
             txn_counts = [cl.engine.ok_count for cl in clients],
             res_counts = [cl.engine.res_count for cl in clients],
