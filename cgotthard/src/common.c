@@ -85,4 +85,7 @@ double gettimestamp() {
 }
 
 
+double incAvg(double avg, double val, int n) {
+    return ((avg*(n-1)) + val) / n;
+}
 

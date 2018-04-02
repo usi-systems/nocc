@@ -158,7 +158,7 @@ struct client_stats {
     unsigned abort_cnt;
     unsigned switch_abort_cnt;
     double elapsed;
-    double avg_lat;
+    double avg_txn_lat;
 };
 
 
@@ -172,11 +172,11 @@ void *client_thread(void *arg) {
     uint32_t req_id = 0;
     uint32_t val = 0;
     uint32_t key = 1;
-    double start, txn_start = 0, txn_lat;
+    double start, txn_start = 0, now;
     int size, sent_size;
     char from_switch;
 
-    st->txn_cnt = 0; st->abort_cnt = 0; st->switch_abort_cnt = 0;  st->avg_lat = 0;
+    st->txn_cnt = 0; st->abort_cnt = 0; st->switch_abort_cnt = 0; st->avg_txn_lat = 0;
 
 	int sock_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 
@@ -206,8 +206,10 @@ void *client_thread(void *arg) {
         uint8_t status = parse_res(buf, size, cl_id, req_id, key, &val, &from_switch);
 
         if (status == STATUS_OK) {
-            txn_start = gettimestamp();
+            now = gettimestamp();
             st->txn_cnt++;
+            st->avg_txn_lat = incAvg(st->avg_txn_lat, now - txn_start, st->txn_cnt);
+            txn_start = now;
         }
         else {
             st->abort_cnt++;
@@ -226,7 +228,7 @@ void *client_thread(void *arg) {
     close(sock_fd);
 }
 
-#define MAX_THREADS 256
+#define MAX_THREADS 512
 pthread_t client_threads[MAX_THREADS];
 
 int main(int argc, char *argv[]) {
@@ -312,10 +314,10 @@ int main(int argc, char *argv[]) {
             if (i != 0) fprintf(fh, ",");
             fprintf(fh, "%d", st[i].txn_cnt);
         }
-        fprintf(fh, "], \"txn_lats\": [");
+        fprintf(fh, "], \"avg_txn_lats\": [");
         for (i = 0; i < num_clients; i++) {
             if (i != 0) fprintf(fh, ",");
-            fprintf(fh, "[]");
+            fprintf(fh, "%f", st->avg_txn_lat);
         }
 
         fprintf(fh, "], \"elapseds\": [");

@@ -24,28 +24,35 @@ def loadResultFile(filename):
     else:
         results['mode'] = 'gotthard'
 
-    if results['zipf'] is not None:
-        results['write_ratio'] = results['write_ratio']
-    else:
+    if 'duration' not in results: results['duration'] = 180
+
+    if results['zipf'] is None:
         results['write_ratio'] = results['pdf'][0]
 
     elapsed = np.mean(results['elapseds'])
     total_txns = sum(results['txn_counts'])
-    total_res = sum(results['res_counts'])
-    total_switch_res = sum(results['switch_res_counts'])
+    total_reqs = sum(results['req_counts']) if 'req_counts' in results else 0
+    #total_res = sum(results['res_counts'])
+    #total_switch_res = sum(results['switch_res_counts'])
     total_aborts = sum(results['abort_counts'])
     total_switch_aborts = sum(results['switch_abort_counts'])
-    results['switch_ratio'] = total_switch_res / float(total_res)
+    #results['switch_ratio'] = total_switch_res / float(total_res)
+    results['avg_req_rate'] = total_reqs / elapsed
     results['avg_txn_rate'] = total_txns / elapsed
-    results['avg_txn_lat'] = np.mean([lat for lats in results['txn_lats'] for lat in lats]) * 1000 # convert to ms
-    results['avg_req_lat'] = np.mean([lat for lats in results['req_lats'] for lat in lats]) * 1000 # convert to ms
+    results['avg_txn_lat'] = 0
+    results['avg_req_lat'] = 0
+    #results['avg_txn_lat'] = np.mean([lat for lats in results['txn_lats'] for lat in lats]) * 1000 # convert to ms
+    #results['avg_req_lat'] = np.mean([lat for lats in results['req_lats'] for lat in lats]) * 1000 # convert to ms
+    if 'avg_txn_lats' in results:
+        results['avg_txn_lat'] = np.mean(results['avg_txn_lats']) * 1000 # convert to ms
+
     results['store_aborts'] = total_aborts - total_switch_aborts
     results['store_aborts_per_txn'] = results['store_aborts'] / float(total_txns)
 
-    store_res_count = total_res - total_switch_res
-    results['store_msgs_per_txn'] = store_res_count / float(total_txns)
-    del results['txn_lats']
-    del results['req_lats']
+    #store_res_count = total_res - total_switch_res
+    #results['store_msgs_per_txn'] = store_res_count / float(total_txns)
+    if 'txn_lats' in results: del results['txn_lats']
+    if 'req_lats' in results: del results['req_lats']
 
     with open(cached_filename, 'w') as f:
         json.dump(results, f)
@@ -70,7 +77,7 @@ else:
     results = map(loadResultFile, filenames)
 
 
-fields = ['mode', 'num_clients', 'write_ratio', 'zipf', 'duration', 'avg_txn_rate', 'switch_ratio', 'avg_txn_lat', 'avg_req_lat', 'store_msgs_per_txn', 'store_cpu_pct', 'store_aborts', 'store_aborts_per_txn']
+fields = ['mode', 'num_clients', 'write_ratio', 'zipf', 'duration', 'avg_txn_rate', 'avg_txn_lat', 'avg_req_lat', 'store_cpu_pct', 'store_aborts_per_txn']
 
 print '\t'.join(fields)
 for row in results:
